@@ -1,12 +1,12 @@
-# 🛍️ Ecart — Full-Stack E-Commerce Platform
+# Ecart — Full-Stack E-Commerce Platform
 
-> 🚧 **Status:** Under Active Construction — Initial Setup Phase
+> **Status:** Under Active Construction — Initial Setup Phase
 
 A decoupled full-stack e-commerce web application built with **React (Vite)** and **Laravel 11 REST API**, engineered to demonstrate high-signal software engineering fundamentals: atomic database transactions, server-side price authority, role-based authorization policies, and secure payment webhook processing.
 
 ---
 
-## 🌟 Core Engineering Highlights (Portfolio Talking Points)
+## Core Engineering Highlights (Portfolio Talking Points)
 
 1. **Atomic Checkout with Row-Level Locking (`DB::transaction` + `lockForUpdate`)**:
    - Prevents overselling under concurrent checkouts by acquiring pessimistic row locks on product inventory records before verifying quantities and decrementing stock.
@@ -25,7 +25,7 @@ A decoupled full-stack e-commerce web application built with **React (Vite)** an
 
 ---
 
-## 🛠️ Planned Tech Stack
+## Planned Tech Stack
 
 | Layer | Technology |
 | :--- | :--- |
@@ -37,7 +37,7 @@ A decoupled full-stack e-commerce web application built with **React (Vite)** an
 
 ---
 
-## 🏛️ System Architecture
+## System Architecture
 
 The application uses a fully decoupled client-server architecture communicating strictly via JSON REST APIs over HTTP/HTTPS:
 
@@ -65,7 +65,7 @@ The application uses a fully decoupled client-server architecture communicating 
 
 ---
 
-## 📦 Core Data Entities
+## Core Data Entities
 
 * **`users`**: Customer accounts and admin users (`role: customer | admin`).
 * **`categories`**: Product taxonomy with URL slugs and active status flags.
@@ -77,7 +77,7 @@ The application uses a fully decoupled client-server architecture communicating 
 
 ---
 
-## 🗺️ Implementation Roadmap
+## Implementation Roadmap
 
 - [ ] **Step 1: Project Setup** — Scaffold Vite React frontend & Laravel 11 backend with CORS configuration.
 - [ ] **Step 2: Database & Seeders** — Database migrations, models, and realistic catalog seeders.
@@ -92,6 +92,6 @@ The application uses a fully decoupled client-server architecture communicating 
 
 ---
 
-## 📄 Documentation Links
+## Documentation Links
 * [PROJECT_ROADMAP.md](PROJECT_ROADMAP.md) — Detailed development blueprint and phased scope breakdown.
 * [SYSTEM_DOCUMENTATION.md](SYSTEM_DOCUMENTATION.md) — Comprehensive functional, non-functional, and database specifications.
