@@ -33,7 +33,7 @@ A decoupled full-stack e-commerce web application built with **React (Vite)** an
 | **Backend** | Laravel 11, PHP 8.3+, Laravel Sanctum (Personal Access Tokens) |
 | **Database** | MySQL 8.0+ / Cloud MySQL (InnoDB, Foreign Key Constraints, Row-Level Locking) |
 | **Payments** | Stripe API (Stripe Elements, PaymentIntents, Signed Webhooks) |
-| **Deployment** | Vercel (Frontend), Render / Railway (Backend API), Cloudinary (Catalog Media) |
+| **Deployment** | Vercel (Frontend), Render / Railway (Backend API),Database Cloud Services |
 
 ---
 
