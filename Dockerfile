@@ -9,13 +9,8 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Copy application files
-COPY . .
-
-# Support both build contexts (whether build was triggered from repo root or backend folder)
-RUN if [ -f "backend/composer.json" ]; then \
-        cp -a backend/. . && rm -rf backend frontend; \
-    fi
+# Copy backend files specifically
+COPY backend/ .
 
 # Install production PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction
