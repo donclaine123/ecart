@@ -1,4 +1,4 @@
-FROM php:8.3-cli-alpine
+FROM php:8.4-cli-alpine
 
 # Install PostgreSQL client dev packages & system utilities
 RUN apk add --no-cache libpq-dev zip unzip git curl \
@@ -13,7 +13,7 @@ WORKDIR /var/www/html
 COPY backend/ .
 
 # Install production PHP dependencies
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+RUN composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-req=php
 
 # Permissions for Laravel storage & cache
 RUN chmod -R 777 storage bootstrap/cache
