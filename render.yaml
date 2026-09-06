@@ -1,7 +1,7 @@
 services:
   - type: web
     name: ecart-backend
-    runtime: docker
+    env: docker
     dockerfilePath: backend/Dockerfile
     dockerContext: backend
     plan: free
@@ -18,13 +18,13 @@ services:
       - key: DB_CONNECTION
         value: pgsql
       - key: DB_HOST
-        value: aws-0-ap-southeast-1.pooler.supabase.com
+        sync: false
       - key: DB_PORT
         value: 5432
       - key: DB_DATABASE
-        value: postgres
+        sync: false
       - key: DB_USERNAME
-        value: postgres.jplkvxypbpsrybbaypps
+        sync: false
       - key: DB_PASSWORD
         sync: false
       - key: DB_SSLMODE
