@@ -118,8 +118,12 @@ export default function Navbar() {
                       </div>
                       <div className="pt-1 border-t border-slate-100">
                         <button
-                          onClick={logout}
-                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-rose-600 hover:bg-rose-50 font-medium text-left"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setUserDropdownOpen(false)
+                            logout()
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-rose-600 hover:bg-rose-50 font-medium text-left cursor-pointer transition-colors"
                         >
                           <LogOut className="w-3.5 h-3.5" />
                           Sign Out

@@ -30,10 +30,18 @@ export default function ProductDetailPage() {
     .filter((p) => p.category_id === product.category_id && p.id !== product.id)
     .slice(0, 4)
 
-  const handleAddToCart = () => {
-    addToCart(product, quantity)
+  const handleAddToCart = async () => {
     setAdded(true)
     setTimeout(() => setAdded(false), 1500)
+
+    const res = await addToCart(product, quantity)
+    if (res?.requireAuth) {
+      navigate('/login')
+      return
+    }
+    if (res?.success === false) {
+      setAdded(false)
+    }
   }
 
   return (

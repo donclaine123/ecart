@@ -128,17 +128,26 @@ export function AuthProvider({ children }) {
     return await login(creds.email, creds.password)
   }
 
-  // Real Logout Flow (Revokes Sanctum token on server)
+  // Real Logout Flow (Instant 0ms local logout + background server revocation)
   const logout = async () => {
-    try {
-      const currentToken = localStorage.getItem('ecart_token')
-      if (currentToken) {
-        await api.post('/auth/logout')
+    const currentToken = localStorage.getItem('ecart_token')
+
+    // 1. Immediate local session reset (0ms UI feedback - no waiting)
+    clearAuthData()
+
+    // 2. Background server-side token revocation
+    if (currentToken) {
+      try {
+        await api.post(
+          '/auth/logout',
+          {},
+          {
+            headers: { Authorization: `Bearer ${currentToken}` },
+          }
+        )
+      } catch {
+        // ignore background network errors
       }
-    } catch {
-      // ignore network errors on logout
-    } finally {
-      clearAuthData()
     }
   }
 

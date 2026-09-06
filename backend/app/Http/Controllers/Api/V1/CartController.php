@@ -12,43 +12,7 @@ class CartController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $user = $request->user();
-        $items = CartItem::with('product')
-            ->where('user_id', $user->id)
-            ->get();
-
-        $subtotal = 0.00;
-        $formattedItems = [];
-
-        foreach ($items as $item) {
-            $product = $item->product;
-            $lineSubtotal = round($product->price * $item->quantity, 2);
-            $subtotal += $lineSubtotal;
-
-            $formattedItems[] = [
-                'id' => $item->id,
-                'product_id' => $product->id,
-                'name' => $product->name,
-                'slug' => $product->slug,
-                'sku' => $product->sku,
-                'price' => (float) $product->price,
-                'stock_quantity' => $product->stock_quantity,
-                'image_url' => $product->image_url,
-                'quantity' => $item->quantity,
-                'subtotal' => $lineSubtotal,
-            ];
-        }
-
-        $shippingCost = ($subtotal > 50.00 || count($formattedItems) === 0) ? 0.00 : 15.00;
-        $totalAmount = round($subtotal + $shippingCost, 2);
-
-        return response()->json([
-            'items' => $formattedItems,
-            'subtotal' => round($subtotal, 2),
-            'shipping_cost' => $shippingCost,
-            'total_amount' => $totalAmount,
-            'items_count' => count($formattedItems),
-        ]);
+        return response()->json($this->getCartData($request->user()));
     }
 
     public function store(Request $request): JsonResponse
@@ -84,6 +48,7 @@ class CartController extends Controller
         return response()->json([
             'message' => 'Product added to cart successfully.',
             'item' => $cartItem,
+            'cart' => $this->getCartData($request->user()),
         ], 201);
     }
 
@@ -99,7 +64,7 @@ class CartController extends Controller
 
         $product = $cartItem->product;
 
-        if ($product->stock_quantity < $validated['quantity']) {
+        if ($product && $product->stock_quantity < $validated['quantity']) {
             return response()->json([
                 'message' => 'Requested quantity exceeds available inventory (' . $product->stock_quantity . ' available).',
             ], 422);
@@ -110,6 +75,7 @@ class CartController extends Controller
         return response()->json([
             'message' => 'Cart updated.',
             'item' => $cartItem,
+            'cart' => $this->getCartData($request->user()),
         ]);
     }
 
@@ -123,6 +89,7 @@ class CartController extends Controller
 
         return response()->json([
             'message' => 'Item removed from cart.',
+            'cart' => $this->getCartData($request->user()),
         ]);
     }
 
@@ -132,6 +99,56 @@ class CartController extends Controller
 
         return response()->json([
             'message' => 'Cart cleared.',
+            'cart' => [
+                'items' => [],
+                'subtotal' => 0.00,
+                'shipping_cost' => 0.00,
+                'total_amount' => 0.00,
+                'items_count' => 0,
+            ],
         ]);
+    }
+
+    private function getCartData($user): array
+    {
+        $items = CartItem::with('product')
+            ->where('user_id', $user->id)
+            ->get();
+
+        $subtotal = 0.00;
+        $formattedItems = [];
+
+        foreach ($items as $item) {
+            $product = $item->product;
+            if (! $product) {
+                continue;
+            }
+            $lineSubtotal = round($product->price * $item->quantity, 2);
+            $subtotal += $lineSubtotal;
+
+            $formattedItems[] = [
+                'id' => $item->id,
+                'product_id' => $product->id,
+                'name' => $product->name,
+                'slug' => $product->slug,
+                'sku' => $product->sku,
+                'price' => (float) $product->price,
+                'stock_quantity' => $product->stock_quantity,
+                'image_url' => $product->image_url,
+                'quantity' => $item->quantity,
+                'subtotal' => $lineSubtotal,
+            ];
+        }
+
+        $shippingCost = ($subtotal > 50.00 || count($formattedItems) === 0) ? 0.00 : 15.00;
+        $totalAmount = round($subtotal + $shippingCost, 2);
+
+        return [
+            'items' => $formattedItems,
+            'subtotal' => round($subtotal, 2),
+            'shipping_cost' => $shippingCost,
+            'total_amount' => $totalAmount,
+            'items_count' => count($formattedItems),
+        ];
     }
 }

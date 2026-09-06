@@ -1,9 +1,14 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Package, ArrowRight, Clock } from 'lucide-react'
 import { useCart } from '../context/CartContext'
 
 export default function OrdersHistoryPage() {
-  const { orders } = useCart()
+  const { orders, fetchOrders } = useCart()
+
+  useEffect(() => {
+    fetchOrders?.()
+  }, [fetchOrders])
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-8">

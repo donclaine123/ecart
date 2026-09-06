@@ -1,18 +1,27 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Star, Check } from 'lucide-react'
 import { useCart } from '../../context/CartContext'
 
 export default function ProductCard({ product }) {
   const { addToCart } = useCart()
   const [added, setAdded] = useState(false)
+  const navigate = useNavigate()
 
-  const handleAddToCart = (e) => {
+  const handleAddToCart = async (e) => {
     e.preventDefault()
     e.stopPropagation()
-    addToCart(product, 1)
     setAdded(true)
     setTimeout(() => setAdded(false), 1200)
+
+    const res = await addToCart(product, 1)
+    if (res?.requireAuth) {
+      navigate('/login')
+      return
+    }
+    if (res?.success === false) {
+      setAdded(false)
+    }
   }
 
   return (

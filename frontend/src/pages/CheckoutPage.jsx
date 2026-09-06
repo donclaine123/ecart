@@ -10,9 +10,10 @@ export default function CheckoutPage() {
   const navigate = useNavigate()
 
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [formData, setFormData] = useState({
-    name: user?.name || 'Alex Mercer',
-    email: user?.email || 'alex.mercer@example.com',
+    name: user?.name || '',
+    email: user?.email || '',
     address: '742 Evergreen Terrace',
     city: 'Springfield',
     state: 'OR',
@@ -40,13 +41,22 @@ export default function CheckoutPage() {
 
   const handleSubmitOrder = async (e) => {
     e.preventDefault()
-    setLoading(true)
+    if (!isAuthenticated) {
+      navigate('/login')
+      return
+    }
 
-    setTimeout(async () => {
+    setLoading(true)
+    setError('')
+
+    try {
       const order = await placeMockOrder(formData)
-      setLoading(false)
       navigate(`/order-success/${order.order_number}`)
-    }, 800)
+    } catch (err) {
+      setError(err.message || 'Failed to process order. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -61,6 +71,12 @@ export default function CheckoutPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         {/* Delivery Form & Payment */}
         <form onSubmit={handleSubmitOrder} className="lg:col-span-2 space-y-6">
+          {error && (
+            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+              {error}
+            </div>
+          )}
+
           {!isAuthenticated && (
             <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-between gap-4">
               <div className="text-xs text-indigo-900">

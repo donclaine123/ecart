@@ -1,14 +1,27 @@
 import { useParams, Link } from 'react-router-dom'
 import { CheckCircle2, ArrowRight, Copy, Check } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useCart } from '../context/CartContext'
+import api from '../api/axios'
 
 export default function OrderSuccessPage() {
   const { orderNumber } = useParams()
   const { orders } = useCart()
   const [copied, setCopied] = useState(false)
+  const [fetchedOrder, setFetchedOrder] = useState(null)
 
-  const order = orders.find((o) => o.order_number === orderNumber) || orders[0]
+  useEffect(() => {
+    const memoryOrder = orders.find((o) => o.order_number === orderNumber)
+    if (!memoryOrder && orderNumber) {
+      api.get(`/orders/${orderNumber}`)
+        .then((res) => {
+          if (res.data) setFetchedOrder(res.data)
+        })
+        .catch(() => {})
+    }
+  }, [orderNumber, orders])
+
+  const order = orders.find((o) => o.order_number === orderNumber) || fetchedOrder || orders[0]
 
   const handleCopy = () => {
     if (order?.order_number) {
