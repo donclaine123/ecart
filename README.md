@@ -29,7 +29,7 @@ A decoupled full-stack e-commerce web application built with **React (Vite)** an
 
 | Layer | Technology |
 | :--- | :--- |
-| **Frontend** | React 18, Vite, React Router 6, Axios, Vanilla CSS (Design Tokens) |
+| **Frontend** | React 18, Vite, React Router 6, Axios, Tailwind CSS v4 |
 | **Backend** | Laravel 11, PHP 8.3+, Laravel Sanctum (Personal Access Tokens) |
 | **Database** | MySQL 8.0+ / Cloud MySQL (InnoDB, Foreign Key Constraints, Row-Level Locking) |
 | **Payments** | Stripe API (Stripe Elements, PaymentIntents, Signed Webhooks) |
@@ -45,7 +45,7 @@ The application uses a fully decoupled client-server architecture communicating 
 ┌───────────────────────────────────────┐
 │     Frontend: React SPA (Vite)        │
 │        http://localhost:5173          │
-│  - Pure CSS design tokens (responsive)│
+│  - Tailwind CSS v4 (responsive design)│
 │  - Axios (Authorization: Bearer token)│
 └──────────────────┬────────────────────┘
                    │ RESTful JSON API

@@ -36,7 +36,7 @@ The purpose of this project is to build a robust, high-signal full-stack e-comme
 * **Granular Policy Authorization**: Laravel Policies (`OrderPolicy`, `ProductPolicy`) controlling access down to individual database records.
 
 ### 1.5 Technology Overview
-* **Frontend**: React 18, Vite, React Router 6, Axios, Vanilla CSS design tokens.
+* **Frontend**: React 18, Vite, React Router 6, Axios, Tailwind CSS v4.
 * **Backend**: Laravel 11 (PHP 8.3+), Laravel Sanctum (Personal Access Tokens).
 * **Database**: MySQL 8.0+ / TiDB / Aiven Cloud MySQL.
 * **Payment Gateway**: Stripe API (PaymentIntents + Stripe Elements + Webhooks).
@@ -54,7 +54,7 @@ The application uses a completely decoupled client-server architecture. The fron
 │                      Client Tier                        │
 │             React SPA (Vite) on Vercel                  │
 │       (Local: http://localhost:5173)                   │
-│   - Design Tokens & Responsive UI                       │
+│   - Tailwind CSS v4 & Responsive UI                     │
 │   - Axios with 'Authorization: Bearer <token>'          │
 └───────────────────────────┬─────────────────────────────┘
                             │ JSON / REST API (HTTPS)
@@ -80,7 +80,7 @@ The application uses a completely decoupled client-server architecture. The fron
 * **State Management**: React Context / Custom Hooks for Auth State and Cart State.
 * **API Client**: Axios instance configured with base URL, timeout, and request interceptor injecting `Authorization: Bearer <token>`.
 * **Routing**: React Router with public routes, protected customer routes (`RequireAuth`), and role-guarded admin routes (`RequireAdmin`).
-* **Design System**: Vanilla CSS organized by typography, spacing, glassmorphism surfaces, and responsive grids.
+* **Design System**: Tailwind CSS v4 utilities and custom glassmorphism surfaces.
 
 ### 2.3 Backend / API Architecture
 * **Controllers**: Lean controllers delegating business logic to service classes.

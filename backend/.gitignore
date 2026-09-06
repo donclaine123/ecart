@@ -1,0 +1,31 @@
+/vendor
+/node_modules
+/public/hot
+/public/storage
+/storage/*.key
+.env
+.env.*
+.env.example
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
+npm-debug.log
+yarn-error.log
+/.fleet
+/.idea
+/.vscode
+
+# Databases
+database/*.sqlite
+database/*.sqlite-journal
+
+# Framework generated files
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/logs/*
+!storage/framework/cache/data/.gitignore
+!storage/framework/sessions/.gitignore
+!storage/framework/views/.gitignore
+!storage/logs/.gitignore

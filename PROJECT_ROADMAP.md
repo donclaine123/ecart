@@ -47,7 +47,7 @@ A decoupled, straightforward setup built for zero-friction local development and
 ┌───────────────────────────────────────┐
 │     Frontend: React SPA (Vite)        │
 │        http://localhost:5173          │
-│  - Pure CSS design tokens (responsive)│
+│  - Tailwind CSS v4 (responsive design)│
 │  - Axios (Authorization: Bearer token)│
 └──────────────────┬────────────────────┘
                    │ RESTful JSON API
