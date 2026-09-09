@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Search, SlidersHorizontal, X, Tag } from 'lucide-react'
+import api from '../api/axios'
 import { mockCategories, mockProducts } from '../data/mockProducts'
 import ProductCard from '../components/common/ProductCard'
 
@@ -10,16 +11,78 @@ export default function ShopPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState('featured')
 
-  const handleCategoryChange = (slug) => {
-    if (slug === 'all') {
-      searchParams.delete('category')
-    } else {
-      searchParams.set('category', slug)
-    }
-    setSearchParams(searchParams)
-  }
+  const [categories, setCategories] = useState(mockCategories)
+  const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [usingFallback, setUsingFallback] = useState(false)
 
-  const filteredProducts = useMemo(() => {
+  // 1. Fetch Categories
+  useEffect(() => {
+    let isMounted = true
+    async function loadCategories() {
+      try {
+        const res = await api.get('/categories')
+        if (isMounted && res.data?.data && res.data.data.length > 0) {
+          setCategories(res.data.data)
+        }
+      } catch (err) {
+        console.warn('Could not load categories from backend, using fallback:', err.message)
+      }
+    }
+    loadCategories()
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  // 2. Fetch Products based on filters
+  const fetchProducts = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = {}
+      if (categoryParam !== 'all') {
+        params.category = categoryParam
+      }
+      if (searchQuery.trim()) {
+        params.search = searchQuery.trim()
+      }
+      if (sortBy) {
+        params.sort = sortBy
+      }
+
+      const res = await api.get('/products', { params })
+      const productList = res.data?.data || res.data || []
+
+      if (Array.isArray(productList) && productList.length > 0) {
+        setProducts(productList)
+        setUsingFallback(false)
+      } else if (res.data?.data && res.data.data.length === 0) {
+        // Zero results from server search/filter
+        setProducts([])
+        setUsingFallback(false)
+      } else {
+        throw new Error('Invalid product payload')
+      }
+    } catch (err) {
+      console.warn('Backend unavailable, falling back to local dataset:', err.message)
+      setUsingFallback(true)
+    } finally {
+      setLoading(false)
+    }
+  }, [categoryParam, searchQuery, sortBy])
+
+  // Debounce search/filter query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchProducts()
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [fetchProducts])
+
+  // Client-side fallback filter if usingFallback is true
+  const fallbackFilteredProducts = useMemo(() => {
+    if (!usingFallback) return products
+
     return mockProducts
       .filter((product) => {
         if (categoryParam !== 'all' && product.category_slug !== categoryParam) {
@@ -41,7 +104,18 @@ export default function ShopPage() {
         if (sortBy === 'rating') return parseFloat(b.rating) - parseFloat(a.rating)
         return (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0)
       })
-  }, [categoryParam, searchQuery, sortBy])
+  }, [usingFallback, products, categoryParam, searchQuery, sortBy])
+
+  const displayedProducts = usingFallback ? fallbackFilteredProducts : products
+
+  const handleCategoryChange = (slug) => {
+    if (slug === 'all') {
+      searchParams.delete('category')
+    } else {
+      searchParams.set('category', slug)
+    }
+    setSearchParams(searchParams)
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
@@ -68,7 +142,7 @@ export default function ShopPage() {
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -84,7 +158,7 @@ export default function ShopPage() {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-slate-400 shadow-sm"
+            className="py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-slate-400 shadow-sm cursor-pointer"
           >
             <option value="featured">Featured First</option>
             <option value="price-low">Price: Low to High</option>
@@ -104,10 +178,10 @@ export default function ShopPage() {
               : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
           }`}
         >
-          All Devices ({mockProducts.length})
+          All Devices
         </button>
 
-        {mockCategories.map((cat) => (
+        {categories.map((cat) => (
           <button
             key={cat.slug}
             onClick={() => handleCategoryChange(cat.slug)}
@@ -118,14 +192,30 @@ export default function ShopPage() {
             }`}
           >
             {cat.name}
+            {cat.products_count !== undefined && (
+              <span className="ml-1.5 text-[10px] opacity-60">({cat.products_count})</span>
+            )}
           </button>
         ))}
       </div>
 
-      {/* Products Grid */}
-      {filteredProducts.length > 0 ? (
+      {/* Products Grid or Loading Skeleton */}
+      {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {filteredProducts.map((product) => (
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+            <div
+              key={n}
+              className="bg-white rounded-2xl border border-slate-100 p-5 space-y-4 animate-pulse shadow-sm"
+            >
+              <div className="aspect-[4/3] bg-slate-100 rounded-xl" />
+              <div className="h-4 bg-slate-100 rounded w-2/3" />
+              <div className="h-4 bg-slate-100 rounded w-1/3" />
+            </div>
+          ))}
+        </div>
+      ) : displayedProducts.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {displayedProducts.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}
         </div>
@@ -141,7 +231,7 @@ export default function ShopPage() {
               setSearchQuery('')
               handleCategoryChange('all')
             }}
-            className="mt-3 px-4 py-2 rounded-xl bg-slate-900 text-xs font-semibold text-white hover:bg-slate-800 transition-colors"
+            className="mt-3 px-4 py-2 rounded-xl bg-slate-900 text-xs font-semibold text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             Reset Filters
           </button>

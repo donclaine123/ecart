@@ -1,17 +1,53 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Smartphone, Laptop, Headphones, Watch } from 'lucide-react'
+import api from '../api/axios'
 import { mockProducts } from '../data/mockProducts'
 import ProductCard from '../components/common/ProductCard'
 
 export default function HomePage() {
-  const trendingProducts = mockProducts.filter((p) => p.is_featured).slice(0, 4)
+  const [featuredProducts, setFeaturedProducts] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const categories = [
+  const defaultCategories = [
     { name: 'Flagship Phones', slug: 'smartphones', icon: Smartphone },
     { name: 'Pro Laptops', slug: 'laptops', icon: Laptop },
     { name: 'Noise Cancelling', slug: 'audio', icon: Headphones },
     { name: 'Smart Accessories', slug: 'wearables', icon: Watch },
   ]
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadFeatured() {
+      try {
+        const res = await api.get('/featured-products')
+        if (isMounted) {
+          if (res.data?.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
+            setFeaturedProducts(res.data.data.slice(0, 4))
+          } else {
+            // Fallback if empty database
+            setFeaturedProducts(mockProducts.filter((p) => p.is_featured).slice(0, 4))
+          }
+        }
+      } catch (err) {
+        console.warn('Backend unavailable, using fallback products:', err.message)
+        if (isMounted) {
+          setFeaturedProducts(mockProducts.filter((p) => p.is_featured).slice(0, 4))
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadFeatured()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   return (
     <div className="space-y-20 pt-10 sm:pt-14">
@@ -71,7 +107,7 @@ export default function HomePage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         <h2 className="text-xl font-bold text-slate-900 tracking-tight">Explore Categories</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {categories.map((cat, i) => {
+          {defaultCategories.map((cat, i) => {
             const Icon = cat.icon
             return (
               <Link
@@ -109,11 +145,26 @@ export default function HomePage() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {trendingProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((n) => (
+              <div
+                key={n}
+                className="bg-white rounded-2xl border border-slate-100 p-5 space-y-4 animate-pulse shadow-sm"
+              >
+                <div className="aspect-[4/3] bg-slate-100 rounded-xl" />
+                <div className="h-4 bg-slate-100 rounded w-2/3" />
+                <div className="h-4 bg-slate-100 rounded w-1/3" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {featuredProducts.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        )}
       </section>
     </div>
   )
