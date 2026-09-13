@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Search, SlidersHorizontal, X, Tag } from 'lucide-react'
+import { Search, SlidersHorizontal, X, Tag, Loader2 } from 'lucide-react'
 import api from '../api/axios'
-import { mockCategories, mockProducts } from '../data/mockProducts'
 import ProductCard from '../components/common/ProductCard'
 
 export default function ShopPage() {
@@ -10,103 +9,110 @@ export default function ShopPage() {
   const categoryParam = searchParams.get('category') || 'all'
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState('featured')
-
-  const [categories, setCategories] = useState(mockCategories)
-  const [products, setProducts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [usingFallback, setUsingFallback] = useState(false)
-
-  // 1. Fetch Categories
-  useEffect(() => {
-    let isMounted = true
-    async function loadCategories() {
-      try {
-        const res = await api.get('/categories')
-        if (isMounted && res.data?.data && res.data.data.length > 0) {
-          setCategories(res.data.data)
-        }
-      } catch (err) {
-        console.warn('Could not load categories from backend, using fallback:', err.message)
-      }
-    }
-    loadCategories()
-    return () => {
-      isMounted = false
-    }
-  }, [])
-
-  // 2. Fetch Products based on filters
-  const fetchProducts = useCallback(async () => {
-    setLoading(true)
+  const [categories, setCategories] = useState(() => {
     try {
-      const params = {}
-      if (categoryParam !== 'all') {
-        params.category = categoryParam
+      const cached = localStorage.getItem('ecart_categories_db_cache')
+      if (cached) {
+        const list = JSON.parse(cached)
+        if (Array.isArray(list) && list.length > 0) return list
       }
-      if (searchQuery.trim()) {
-        params.search = searchQuery.trim()
+    } catch {}
+    return []
+  })
+
+  const [allProducts, setAllProducts] = useState(() => {
+    try {
+      const cached = localStorage.getItem('ecart_products_db_cache')
+      if (cached) {
+        const list = JSON.parse(cached)
+        if (Array.isArray(list) && list.length > 0) return list
       }
-      if (sortBy) {
-        params.sort = sortBy
+    } catch {}
+    return []
+  })
+
+  const [loading, setLoading] = useState(allProducts.length === 0)
+
+  // Fetch Categories & Products in parallel directly from database
+  const loadShopData = useCallback(async () => {
+    try {
+      const [catRes, prodRes] = await Promise.all([
+        api.get('/categories', { timeout: 8000 }).catch(() => ({ data: null })),
+        api.get('/products?per_page=100', { timeout: 8000 }).catch(() => ({ data: null })),
+      ])
+
+      const catList = catRes?.data?.data || (Array.isArray(catRes?.data) ? catRes.data : [])
+      if (Array.isArray(catList) && catList.length > 0) {
+        setCategories(catList)
+        try {
+          localStorage.setItem('ecart_categories_db_cache', JSON.stringify(catList))
+        } catch {}
       }
 
-      const res = await api.get('/products', { params })
-      const productList = res.data?.data || res.data || []
-
-      if (Array.isArray(productList) && productList.length > 0) {
-        setProducts(productList)
-        setUsingFallback(false)
-      } else if (res.data?.data && res.data.data.length === 0) {
-        // Zero results from server search/filter
-        setProducts([])
-        setUsingFallback(false)
-      } else {
-        throw new Error('Invalid product payload')
+      const prodList = prodRes?.data?.data || (Array.isArray(prodRes?.data) ? prodRes.data : [])
+      if (Array.isArray(prodList) && prodList.length > 0) {
+        setAllProducts(prodList)
+        try {
+          localStorage.setItem('ecart_products_db_cache', JSON.stringify(prodList))
+        } catch {}
       }
     } catch (err) {
-      console.warn('Backend unavailable, falling back to local dataset:', err.message)
-      setUsingFallback(true)
+      console.warn('Database catalog query notice:', err.message)
     } finally {
       setLoading(false)
     }
-  }, [categoryParam, searchQuery, sortBy])
+  }, [])
 
-  // Debounce search/filter query
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchProducts()
-    }, 250)
-    return () => clearTimeout(timer)
-  }, [fetchProducts])
+    loadShopData()
+  }, [loadShopData])
 
-  // Client-side fallback filter if usingFallback is true
-  const fallbackFilteredProducts = useMemo(() => {
-    if (!usingFallback) return products
-
-    return mockProducts
+  // 3. Instantaneous (0ms) in-memory filtering & sorting
+  const displayedProducts = useMemo(() => {
+    return allProducts
       .filter((product) => {
-        if (categoryParam !== 'all' && product.category_slug !== categoryParam) {
-          return false
+        // Category filter
+        if (categoryParam !== 'all') {
+          const catSlug = (product.category?.slug || product.category_slug || '').toLowerCase()
+          const catId = product.category_id || product.category?.id
+          const param = String(categoryParam).toLowerCase()
+          if (catSlug !== param && String(catId) !== param) {
+            return false
+          }
         }
+
+        // Search query filter
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase()
-          return (
-            product.name.toLowerCase().includes(q) ||
-            product.description.toLowerCase().includes(q) ||
-            product.sku.toLowerCase().includes(q)
-          )
+          const name = (product.name || '').toLowerCase()
+          const desc = (product.description || '').toLowerCase()
+          const sku = (product.sku || '').toLowerCase()
+          if (!name.includes(q) && !desc.includes(q) && !sku.includes(q)) {
+            return false
+          }
         }
+
         return true
       })
       .sort((a, b) => {
-        if (sortBy === 'price-low') return a.price - b.price
-        if (sortBy === 'price-high') return b.price - a.price
-        if (sortBy === 'rating') return parseFloat(b.rating) - parseFloat(a.rating)
+        if (sortBy === 'price-low' || sortBy === 'price_asc') return parseFloat(a.price) - parseFloat(b.price)
+        if (sortBy === 'price-high' || sortBy === 'price_desc') return parseFloat(b.price) - parseFloat(a.price)
+        if (sortBy === 'rating') return parseFloat(b.rating || 0) - parseFloat(a.rating || 0)
         return (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0)
       })
-  }, [usingFallback, products, categoryParam, searchQuery, sortBy])
+  }, [allProducts, categoryParam, searchQuery, sortBy])
 
-  const displayedProducts = usingFallback ? fallbackFilteredProducts : products
+  // Real-time item count per category
+  const categoryCounts = useMemo(() => {
+    const counts = {}
+    for (const p of allProducts) {
+      const slug = p.category?.slug || p.category_slug
+      if (slug) {
+        counts[slug] = (counts[slug] || 0) + 1
+      }
+    }
+    return counts
+  }, [allProducts])
 
   const handleCategoryChange = (slug) => {
     if (slug === 'all') {
@@ -179,37 +185,41 @@ export default function ShopPage() {
           }`}
         >
           All Devices
+          <span className="ml-1.5 text-[10px] opacity-60">({allProducts.length})</span>
         </button>
 
-        {categories.map((cat) => (
-          <button
-            key={cat.slug}
-            onClick={() => handleCategoryChange(cat.slug)}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-              categoryParam === cat.slug
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-            }`}
-          >
-            {cat.name}
-            {cat.products_count !== undefined && (
-              <span className="ml-1.5 text-[10px] opacity-60">({cat.products_count})</span>
-            )}
-          </button>
-        ))}
+        {categories.map((cat) => {
+          const count = categoryCounts[cat.slug] ?? cat.products_count
+          return (
+            <button
+              key={cat.slug}
+              onClick={() => handleCategoryChange(cat.slug)}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                categoryParam === cat.slug
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+              }`}
+            >
+              {cat.name}
+              {count !== undefined && (
+                <span className="ml-1.5 text-[10px] opacity-60">({count})</span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
-      {/* Products Grid or Loading Skeleton */}
-      {loading ? (
+      {/* Products Grid */}
+      {loading && allProducts.length === 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-            <div
-              key={n}
-              className="bg-white rounded-2xl border border-slate-100 p-5 space-y-4 animate-pulse shadow-sm"
-            >
-              <div className="aspect-[4/3] bg-slate-100 rounded-xl" />
-              <div className="h-4 bg-slate-100 rounded w-2/3" />
-              <div className="h-4 bg-slate-100 rounded w-1/3" />
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="bg-white rounded-2xl border border-slate-100 overflow-hidden animate-pulse">
+              <div className="aspect-[4/3] bg-slate-100" />
+              <div className="p-5 space-y-3">
+                <div className="h-3 bg-slate-100 rounded w-1/3" />
+                <div className="h-4 bg-slate-200 rounded w-3/4" />
+                <div className="h-4 bg-slate-100 rounded w-1/2" />
+              </div>
             </div>
           ))}
         </div>

@@ -2,12 +2,29 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Smartphone, Laptop, Headphones, Watch } from 'lucide-react'
 import api from '../api/axios'
-import { mockProducts } from '../data/mockProducts'
 import ProductCard from '../components/common/ProductCard'
 
 export default function HomePage() {
-  const [featuredProducts, setFeaturedProducts] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [featuredProducts, setFeaturedProducts] = useState(() => {
+    try {
+      const cached = localStorage.getItem('ecart_featured_cache')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      }
+    } catch (_) {}
+    return []
+  })
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem('ecart_featured_cache')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (Array.isArray(parsed) && parsed.length > 0) return false
+      }
+    } catch (_) {}
+    return true
+  })
 
   const defaultCategories = [
     { name: 'Flagship Phones', slug: 'smartphones', icon: Smartphone },
@@ -21,20 +38,18 @@ export default function HomePage() {
 
     async function loadFeatured() {
       try {
-        const res = await api.get('/featured-products')
+        const res = await api.get('/featured-products', { timeout: 8000 })
         if (isMounted) {
           if (res.data?.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
-            setFeaturedProducts(res.data.data.slice(0, 4))
-          } else {
-            // Fallback if empty database
-            setFeaturedProducts(mockProducts.filter((p) => p.is_featured).slice(0, 4))
+            const top4 = res.data.data.slice(0, 4)
+            setFeaturedProducts(top4)
+            try {
+              localStorage.setItem('ecart_featured_cache', JSON.stringify(top4))
+            } catch (_) {}
           }
         }
       } catch (err) {
-        console.warn('Backend unavailable, using fallback products:', err.message)
-        if (isMounted) {
-          setFeaturedProducts(mockProducts.filter((p) => p.is_featured).slice(0, 4))
-        }
+        console.warn('Backend unavailable for featured products:', err.message)
       } finally {
         if (isMounted) {
           setLoading(false)

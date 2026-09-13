@@ -93,7 +93,7 @@ export default function OrderSuccessPage() {
               Permanent Invoice Item Snapshot
             </h3>
             <div className="divide-y divide-slate-100 border border-slate-100 rounded-2xl overflow-hidden">
-              {order.items.map((item, idx) => (
+              {(order.items || []).map((item, idx) => (
                 <div key={idx} className="p-4 flex items-center justify-between gap-4 bg-slate-50/50">
                   <div className="flex items-center gap-3">
                     {item.image_url && (
@@ -106,11 +106,11 @@ export default function OrderSuccessPage() {
                     <div>
                       <p className="text-xs font-bold text-slate-900">{item.product_name}</p>
                       <p className="text-[11px] text-slate-400">
-                        ${item.unit_price.toFixed(0)} × {item.quantity} unit{item.quantity > 1 ? 's' : ''}
+                        ${parseFloat(item.unit_price || 0).toFixed(0)} × {item.quantity} unit{item.quantity > 1 ? 's' : ''}
                       </p>
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-slate-900">${item.subtotal.toFixed(0)}</span>
+                  <span className="text-xs font-bold text-slate-900">${parseFloat(item.subtotal || 0).toFixed(0)}</span>
                 </div>
               ))}
             </div>
@@ -120,17 +120,17 @@ export default function OrderSuccessPage() {
             <div className="w-full sm:w-64 space-y-2 text-xs text-slate-600">
               <div className="flex justify-between">
                 <span>Subtotal</span>
-                <span className="text-slate-900">${order.subtotal.toFixed(0)}</span>
+                <span className="text-slate-900">${parseFloat(order.subtotal || 0).toFixed(0)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Shipping</span>
                 <span className="text-slate-900">
-                  {order.shipping_cost === 0 ? 'FREE' : `$${order.shipping_cost.toFixed(0)}`}
+                  {parseFloat(order.shipping_cost || 0) === 0 ? 'FREE' : `$${parseFloat(order.shipping_cost || 0).toFixed(0)}`}
                 </span>
               </div>
               <div className="flex justify-between text-base font-extrabold text-slate-900 pt-2 border-t border-slate-100">
                 <span>Total Amount</span>
-                <span className="text-slate-900">${order.total_amount.toFixed(0)}</span>
+                <span className="text-slate-900">${parseFloat(order.total_amount || 0).toFixed(0)}</span>
               </div>
             </div>
           </div>

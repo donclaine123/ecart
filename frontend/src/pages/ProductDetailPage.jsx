@@ -1,51 +1,68 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Star, ShieldCheck, Truck, RotateCcw, Plus, Minus, Check, ShoppingBag } from 'lucide-react'
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
+import { ArrowLeft, Star, ShieldCheck, Truck, RotateCcw, Plus, Minus, Check, ShoppingBag, Zap } from 'lucide-react'
 import api from '../api/axios'
-import { mockProducts } from '../data/mockProducts'
 import { useCart } from '../context/CartContext'
 import ProductCard from '../components/common/ProductCard'
 
 export default function ProductDetailPage() {
   const { slug } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { addToCart } = useCart()
 
-  const [product, setProduct] = useState(null)
+  const getInitialProduct = () => {
+    // Check if passed via React Router navigation state (instant 0ms)
+    if (location.state?.product && location.state.product.slug === slug) {
+      return location.state.product
+    }
+    return null
+  }
+
+  const fallbackInitial = getInitialProduct()
+  const [product, setProduct] = useState(fallbackInitial || null)
   const [relatedProducts, setRelatedProducts] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!fallbackInitial)
   const [quantity, setQuantity] = useState(1)
   const [added, setAdded] = useState(false)
   const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
     let isMounted = true
-    setLoading(true)
+    const immediate = getInitialProduct()
+
+    if (immediate) {
+      setProduct(immediate)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
+
     setNotFound(false)
     setQuantity(1)
 
+    // Silent background sync for latest live stock, price, and related items
     async function loadProduct() {
       try {
-        const res = await api.get(`/products/${slug}`)
+        const res = await api.get(`/products/${slug}`, { timeout: 5000 })
         if (isMounted && res.data?.product) {
           setProduct(res.data.product)
-          setRelatedProducts(res.data.related || [])
+          if (res.data.related && res.data.related.length > 0) {
+            setRelatedProducts(res.data.related)
+          }
+          setLoading(false)
           return
         }
         throw new Error('Product not found in API response')
       } catch (err) {
-        console.warn('Could not load product from backend, checking fallback:', err.message)
         if (isMounted) {
-          const fallback = mockProducts.find((p) => p.slug === slug)
+          const fallback = getInitialProduct()
           if (fallback) {
             setProduct(fallback)
-            setRelatedProducts(
-              mockProducts
-                .filter((p) => p.category_id === fallback.category_id && p.id !== fallback.id)
-                .slice(0, 4)
-            )
+            setLoading(false)
           } else {
             setNotFound(true)
+            setLoading(false)
           }
         }
       } finally {
@@ -60,7 +77,7 @@ export default function ProductDetailPage() {
     return () => {
       isMounted = false
     }
-  }, [slug])
+  }, [slug, location.state])
 
   const handleAddToCart = async () => {
     if (!product) return
@@ -75,6 +92,18 @@ export default function ProductDetailPage() {
     if (res?.success === false) {
       setAdded(false)
     }
+  }
+
+  const handleBuyNow = () => {
+    if (!product || product.stock_quantity === 0) return
+    navigate('/checkout', {
+      state: {
+        directItem: {
+          product,
+          quantity,
+        },
+      },
+    })
   }
 
   if (loading) {
@@ -188,8 +217,9 @@ export default function ProductDetailPage() {
           </p>
 
           {/* Quantity Controls & Add to Cart */}
-          <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-4">
-            <div className="flex items-center rounded-xl bg-slate-50 border border-slate-200 p-1">
+          {/* Quantity Controls & Purchase Buttons */}
+          <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="flex items-center justify-between sm:justify-start rounded-xl bg-slate-50 border border-slate-200 p-1 shrink-0">
               <button
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                 disabled={quantity <= 1 || product.stock_quantity === 0}
@@ -208,26 +238,35 @@ export default function ProductDetailPage() {
             </div>
 
             <button
+              onClick={handleBuyNow}
+              disabled={product.stock_quantity === 0}
+              className="flex-1 py-3.5 px-6 rounded-xl font-bold text-xs flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white shadow-sm active:scale-98 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Zap className="w-3.5 h-3.5 fill-white" />
+              Buy Now
+            </button>
+
+            <button
               onClick={handleAddToCart}
               disabled={product.stock_quantity === 0}
-              className={`flex-1 w-full sm:w-auto py-3.5 px-6 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              className={`py-3.5 px-5 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 border transition-all cursor-pointer shrink-0 ${
                 product.stock_quantity === 0
-                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  ? 'border-slate-200 text-slate-400 cursor-not-allowed'
                   : added
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-slate-900 hover:bg-slate-800 text-white shadow-sm active:scale-98'
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                  : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-800 active:scale-98'
               }`}
             >
               {product.stock_quantity === 0 ? (
                 'Sold Out'
               ) : added ? (
                 <>
-                  <Check className="w-4 h-4" />
+                  <Check className="w-4 h-4 text-emerald-600" />
                   Added to Cart
                 </>
               ) : (
                 <>
-                  <ShoppingBag className="w-4 h-4" />
+                  <ShoppingBag className="w-4 h-4 text-slate-500" />
                   Add to Cart
                 </>
               )}

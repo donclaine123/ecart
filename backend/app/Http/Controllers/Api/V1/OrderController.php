@@ -8,13 +8,23 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\Product;
+use App\Services\StripeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 
 class OrderController extends Controller
 {
+    protected StripeService $stripeService;
+
+    public function __construct(StripeService $stripeService)
+    {
+        $this->stripeService = $stripeService;
+    }
+
     /**
      * Atomic Checkout with Pessimistic Row-Level Locking (DB::transaction + lockForUpdate)
      */
@@ -31,55 +41,92 @@ class OrderController extends Controller
             'shipping_address.country' => ['required', 'string'],
             'shipping_address.phone' => ['required', 'string'],
             'gateway' => ['nullable', 'in:mock,stripe'],
+            'payment_intent_id' => ['required_if:gateway,stripe', 'nullable', 'string'],
+            'direct_item' => ['nullable', 'array'],
+            'direct_item.product_id' => ['required_with:direct_item', 'exists:products,id'],
+            'direct_item.quantity' => ['required_with:direct_item', 'integer', 'min:1'],
         ]);
 
         $user = $request->user();
+        $isDirect = !empty($validated['direct_item']);
 
-        // 1. Fetch user cart items
-        $cartItems = CartItem::where('user_id', $user->id)->get();
-
-        if ($cartItems->isEmpty()) {
-            return response()->json([
-                'message' => 'Cannot create order: your shopping cart is empty.',
-            ], 422);
+        if (!$isDirect) {
+            $cartItems = CartItem::where('user_id', $user->id)->get();
+            if ($cartItems->isEmpty()) {
+                return response()->json([
+                    'message' => 'Cannot create order: your shopping cart is empty.',
+                ], 422);
+            }
         }
 
         $order = null;
 
         // 2. Execute Atomic Checkout Transaction with Pessimistic Row Locking
         try {
-            DB::transaction(function () use ($user, $cartItems, $validated, &$order) {
-                $productIds = $cartItems->pluck('product_id')->all();
-
-                // Pessimistic row-level lock acquired on inventory records
-                $products = Product::whereIn('id', $productIds)
-                    ->lockForUpdate()
-                    ->get()
-                    ->keyBy('id');
-
-                $subtotal = 0.00;
+            DB::transaction(function () use ($user, $validated, $isDirect, &$order) {
                 $itemsToSnapshot = [];
+                $subtotal = 0.00;
+                $productsMap = [];
 
-                // Verify stock availability under lock and compute subtotal
-                foreach ($cartItems as $cartItem) {
-                    $product = $products->get($cartItem->product_id);
+                if ($isDirect) {
+                    $directItem = $validated['direct_item'];
+                    $product = Product::where('id', $directItem['product_id'])
+                        ->lockForUpdate()
+                        ->firstOrFail();
 
-                    if (! $product || $product->stock_quantity < $cartItem->quantity) {
-                        $available = $product ? $product->stock_quantity : 0;
-                        $productName = $product ? $product->name : 'Unknown';
-                        throw new \Exception("Insufficient inventory for '{$productName}'. Only {$available} units remain.");
+                    if (! $product->is_active) {
+                        throw new \Exception("Product '{$product->name}' is no longer available for purchase.");
                     }
 
-                    $lineSubtotal = round($product->price * $cartItem->quantity, 2);
+                    if ($product->stock_quantity < $directItem['quantity']) {
+                        throw new \Exception("Insufficient inventory for '{$product->name}'. Only {$product->stock_quantity} units remain.");
+                    }
+
+                    $lineSubtotal = round($product->price * $directItem['quantity'], 2);
                     $subtotal += $lineSubtotal;
 
                     $itemsToSnapshot[] = [
                         'product_id' => $product->id,
                         'product_name' => $product->name,
                         'unit_price' => $product->price,
-                        'quantity' => $cartItem->quantity,
+                        'quantity' => $directItem['quantity'],
                         'subtotal' => $lineSubtotal,
                     ];
+                    $productsMap[$product->id] = $product;
+                } else {
+                    $cartItems = CartItem::where('user_id', $user->id)->get();
+                    $productIds = $cartItems->pluck('product_id')->all();
+
+                    $products = Product::whereIn('id', $productIds)
+                        ->lockForUpdate()
+                        ->get()
+                        ->keyBy('id');
+
+                    foreach ($cartItems as $cartItem) {
+                        $product = $products->get($cartItem->product_id);
+
+                        if (! $product || ! $product->is_active) {
+                            $productName = $product ? $product->name : 'Unknown';
+                            throw new \Exception("Product '{$productName}' is no longer available for purchase.");
+                        }
+
+                        if ($product->stock_quantity < $cartItem->quantity) {
+                            $available = $product->stock_quantity;
+                            throw new \Exception("Insufficient inventory for '{$product->name}'. Only {$available} units remain.");
+                        }
+
+                        $lineSubtotal = round($product->price * $cartItem->quantity, 2);
+                        $subtotal += $lineSubtotal;
+
+                        $itemsToSnapshot[] = [
+                            'product_id' => $product->id,
+                            'product_name' => $product->name,
+                            'unit_price' => $product->price,
+                            'quantity' => $cartItem->quantity,
+                            'subtotal' => $lineSubtotal,
+                        ];
+                    }
+                    $productsMap = $products;
                 }
 
                 $shippingCost = $subtotal > 50.00 ? 0.00 : 15.00;
@@ -106,20 +153,39 @@ class OrderController extends Controller
                     OrderItem::create($itemData);
 
                     // Decrement stock under pessimistic lock
-                    $products[$itemData['product_id']]->decrement('stock_quantity', $itemData['quantity']);
+                    $productsMap[$itemData['product_id']]->decrement('stock_quantity', $itemData['quantity']);
                 }
 
-                // Create Payment record (Phase 1 Mock Gateway)
+                $gateway = $validated['gateway'] ?? 'mock';
+                $transactionId = 'TXN-' . strtoupper(Str::random(12));
+
+                if ($gateway === 'stripe') {
+                    $paymentIntentId = $validated['payment_intent_id'] ?? null;
+                    if (!$paymentIntentId) {
+                        throw new \Exception('PaymentIntent ID is required for Stripe checkout.');
+                    }
+
+                    $intent = $this->stripeService->retrievePaymentIntent($paymentIntentId);
+                    if (empty($intent) || (!in_array($intent['status'] ?? '', ['succeeded', 'requires_capture']) && !($intent['is_mock'] ?? false))) {
+                        throw new \Exception('Payment verification failed. Please check your card details and try again.');
+                    }
+
+                    $transactionId = $paymentIntentId;
+                }
+
+                // Create Payment record
                 Payment::create([
                     'order_id' => $order->id,
-                    'gateway' => $validated['gateway'] ?? 'mock',
-                    'transaction_id' => 'TXN-' . strtoupper(Str::random(12)),
+                    'gateway' => $gateway,
+                    'transaction_id' => $transactionId,
                     'amount' => $totalAmount,
                     'status' => 'paid',
                 ]);
 
-                // Clear user cart
-                CartItem::where('user_id', $user->id)->delete();
+                // Clear user cart only if standard cart checkout
+                if (!$isDirect) {
+                    CartItem::where('user_id', $user->id)->delete();
+                }
             });
         } catch (\Exception $e) {
             return response()->json([
@@ -147,8 +213,9 @@ class OrderController extends Controller
     {
         $order = Order::with(['items', 'payments'])
             ->where('order_number', $orderNumber)
-            ->where('user_id', $request->user()->id)
             ->firstOrFail();
+
+        Gate::authorize('view', $order);
 
         return response()->json($order);
     }
@@ -156,11 +223,13 @@ class OrderController extends Controller
     // Admin Operations
     public function adminOrders(): JsonResponse
     {
-        $orders = Order::with(['user:id,name,email', 'items'])
-            ->latest()
-            ->paginate(20);
+        $orders = Cache::remember('admin_orders_list', 60, function () {
+            return Order::with(['user:id,name,email', 'items'])
+                ->latest()
+                ->paginate(20);
+        });
 
-        return response()->json($orders);
+        return response()->json($orders)->header('Cache-Control', 'private, max-age=15, stale-while-revalidate=60');
     }
 
     public function updateStatus(Request $request, int $id): JsonResponse
@@ -173,6 +242,9 @@ class OrderController extends Controller
 
         $order->update(['status' => $validated['status']]);
 
+        Cache::forget('admin_orders_list');
+        Cache::forget('admin_dashboard_stats');
+
         return response()->json([
             'message' => 'Order status updated successfully.',
             'order' => $order,
@@ -181,14 +253,18 @@ class OrderController extends Controller
 
     public function adminStats(): JsonResponse
     {
-        $totalRevenue = Order::where('payment_status', 'paid')->sum('total_amount');
-        $totalOrders = Order::count();
-        $lowStockCount = Product::where('stock_quantity', '<=', 8)->count();
+        $stats = Cache::remember('admin_dashboard_stats', 60, function () {
+            $totalRevenue = Order::where('payment_status', 'paid')->sum('total_amount');
+            $totalOrders = Order::count();
+            $lowStockCount = Product::where('stock_quantity', '<=', 8)->count();
 
-        return response()->json([
-            'total_revenue' => (float) $totalRevenue,
-            'total_orders' => $totalOrders,
-            'low_stock_products_count' => $lowStockCount,
-        ]);
+            return [
+                'total_revenue' => (float) $totalRevenue,
+                'total_orders' => $totalOrders,
+                'low_stock_products_count' => $lowStockCount,
+            ];
+        });
+
+        return response()->json($stats)->header('Cache-Control', 'private, max-age=15, stale-while-revalidate=60');
     }
 }

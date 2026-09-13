@@ -230,6 +230,43 @@ export function CartProvider({ children }) {
     }
   }
 
+  const createStripePaymentIntent = async (directParams = null) => {
+    try {
+      const res = await api.post('/checkout/payment-intent', directParams || {})
+      return res.data
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to initialize Stripe payment.'
+      throw new Error(msg)
+    }
+  }
+
+  const placeStripeOrder = async (shippingAddress, paymentIntentId, directItem = null) => {
+    try {
+      const payload = {
+        shipping_address: shippingAddress,
+        gateway: 'stripe',
+        payment_intent_id: paymentIntentId,
+      }
+      if (directItem) {
+        payload.direct_item = directItem
+      }
+
+      const res = await api.post('/orders', payload)
+
+      if (res.data?.order) {
+        setOrders((prev) => [res.data.order, ...prev])
+        if (!directItem) {
+          setItems([])
+        }
+        return res.data.order
+      }
+      throw new Error('No order returned from server.')
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to finalize Stripe order.'
+      throw new Error(msg)
+    }
+  }
+
   return (
     <CartContext.Provider
       value={{
@@ -244,6 +281,8 @@ export function CartProvider({ children }) {
         removeFromCart,
         clearCart,
         placeMockOrder,
+        createStripePaymentIntent,
+        placeStripeOrder,
         fetchCart,
         fetchOrders,
         orders,

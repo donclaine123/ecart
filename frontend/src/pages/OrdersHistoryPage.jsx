@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Package, ArrowRight, Clock } from 'lucide-react'
+import { Package, ArrowRight, Clock, User } from 'lucide-react'
 import { useCart } from '../context/CartContext'
 
 export default function OrdersHistoryPage() {
@@ -17,6 +17,24 @@ export default function OrdersHistoryPage() {
         <p className="text-xs text-slate-500 mt-1">
           Review previous purchases, real-time shipment status, and snapshot receipts.
         </p>
+      </div>
+
+      {/* Account Navigation Tabs */}
+      <div className="flex border-b border-slate-200 gap-6 text-xs font-semibold">
+        <Link
+          to="/account/orders"
+          className="pb-3 text-indigo-600 border-b-2 border-indigo-600 flex items-center gap-2"
+        >
+          <Package className="w-4 h-4" />
+          Order Invoices
+        </Link>
+        <Link
+          to="/account/profile"
+          className="pb-3 text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-2"
+        >
+          <User className="w-4 h-4" />
+          Profile & Address
+        </Link>
       </div>
 
       {orders.length === 0 ? (
@@ -60,18 +78,18 @@ export default function OrdersHistoryPage() {
 
                 <div className="text-right">
                   <span className="text-[11px] text-slate-400 block">Total Amount</span>
-                  <span className="text-sm font-bold text-slate-900">${order.total_amount.toFixed(0)}</span>
+                  <span className="text-sm font-bold text-slate-900">${parseFloat(order.total_amount || 0).toFixed(0)}</span>
                 </div>
               </div>
 
               {/* Items summary */}
               <div className="space-y-2">
-                {order.items.map((item, idx) => (
+                {(order.items || []).map((item, idx) => (
                   <div key={idx} className="flex items-center justify-between text-xs text-slate-600">
                     <span className="truncate max-w-md">
                       {item.product_name} <span className="text-slate-400">× {item.quantity}</span>
                     </span>
-                    <span className="font-semibold text-slate-900">${item.subtotal.toFixed(0)}</span>
+                    <span className="font-semibold text-slate-900">${parseFloat(item.subtotal || 0).toFixed(0)}</span>
                   </div>
                 ))}
               </div>

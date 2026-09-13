@@ -80,6 +80,45 @@ class AuthController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'role' => $user->role,
+                'phone' => $user->phone,
+                'address' => $user->address,
+                'city' => $user->city,
+                'state' => $user->state,
+                'postal_code' => $user->postal_code,
+                'country' => $user->country,
+            ],
+        ]);
+    }
+
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'name' => ['sometimes', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'address' => ['nullable', 'string', 'max:500'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'state' => ['nullable', 'string', 'max:100'],
+            'postal_code' => ['nullable', 'string', 'max:20'],
+            'country' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $user->update($validated);
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+                'phone' => $user->phone,
+                'address' => $user->address,
+                'city' => $user->city,
+                'state' => $user->state,
+                'postal_code' => $user->postal_code,
+                'country' => $user->country,
             ],
         ]);
     }

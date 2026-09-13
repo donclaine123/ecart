@@ -1,5 +1,6 @@
 import { Truck, ShieldCheck, RotateCcw, Headset, ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import BrandLogo from '../common/BrandLogo'
 
 export default function Footer() {
   return (
@@ -51,8 +52,16 @@ export default function Footer() {
 
       {/* Main Footer Links */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
-          <div>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-12 gap-8">
+          {/* Brand Presentation Column */}
+          <div className="col-span-2 md:col-span-4 lg:col-span-4 space-y-4">
+            <BrandLogo size="md" showTagline tagline="Precision High-Tech Studio" />
+            <p className="text-[12px] text-slate-500 leading-relaxed max-w-sm">
+              Next-generation consumer electronics engineered with Scandinavian minimalism, computational performance, and acoustic fidelity.
+            </p>
+          </div>
+
+          <div className="col-span-1 md:col-span-2 lg:col-span-2">
             <h5 className="font-bold text-slate-900 mb-3.5 text-xs">About</h5>
             <ul className="space-y-2 text-[11px]">
               <li><Link to="/our-story" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-slate-900 transition-colors">Our Story</Link></li>
@@ -61,7 +70,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          <div>
+          <div className="col-span-1 md:col-span-2 lg:col-span-2">
             <h5 className="font-bold text-slate-900 mb-3.5 text-xs">Shop</h5>
             <ul className="space-y-2 text-[11px]">
               <li><Link to="/shop" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-slate-900 transition-colors">New Arrivals</Link></li>
@@ -70,7 +79,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          <div>
+          <div className="col-span-1 md:col-span-2 lg:col-span-2">
             <h5 className="font-bold text-slate-900 mb-3.5 text-xs">Support</h5>
             <ul className="space-y-2 text-[11px]">
               <li><Link to="/contact" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-slate-900 transition-colors">Contact Us</Link></li>
@@ -79,7 +88,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          <div className="col-span-2">
+          <div className="col-span-2 md:col-span-4 lg:col-span-2">
             <h5 className="font-bold text-slate-900 mb-2 text-xs">Newsletter</h5>
             <p className="text-[11px] text-slate-400 mb-3">Get the latest tech updates.</p>
             <form onSubmit={(e) => e.preventDefault()} className="flex items-center max-w-sm">

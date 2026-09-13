@@ -1,35 +1,63 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { ShoppingBag, Lock, Mail, ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Lock, Mail, ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { BrandIcon } from '../components/common/BrandLogo'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
-  const { login, loading } = useAuth()
+  const { user, login, demoLogin, loading } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
   const from = location.state?.from?.pathname || '/shop'
+
+  // If already authenticated, route admins directly to /admin and customers to /shop
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      navigate('/admin', { replace: true })
+    } else if (user) {
+      navigate(from, { replace: true })
+    }
+  }, [user, navigate, from])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     const res = await login(email, password)
     if (res.success) {
-      navigate(from, { replace: true })
+      if (res.user?.role === 'admin') {
+        navigate('/admin', { replace: true })
+      } else {
+        navigate(from, { replace: true })
+      }
     } else {
       setError(res.error || 'Authentication failed. Please check your credentials.')
     }
   }
 
+  const handleQuickLogin = async (role) => {
+    setError('')
+    const res = await demoLogin(role)
+    if (res.success) {
+      if (res.user?.role === 'admin' || role === 'admin') {
+        navigate('/admin', { replace: true })
+      } else {
+        navigate(from, { replace: true })
+      }
+    } else {
+      setError(res.error || 'Quick login failed.')
+    }
+  }
+
   return (
     <div className="max-w-md mx-auto px-4 py-16 space-y-6">
-      <div className="text-center space-y-1.5">
-        <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white mx-auto shadow-sm">
-          <ShoppingBag className="w-5 h-5" />
+      <div className="text-center space-y-2">
+        <div className="flex justify-center mb-1">
+          <BrandIcon size="lg" />
         </div>
         <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Sign In to Ecart</h1>
         <p className="text-xs text-slate-500">
@@ -105,6 +133,31 @@ export default function LoginPage() {
             )}
           </button>
         </form>
+
+        {/* 1-Click Demo Accounts */}
+        <div className="pt-3 border-t border-slate-100 space-y-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block text-center">
+            Quick Demo Accounts
+          </span>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => handleQuickLogin('admin')}
+              className="py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-900 text-[11px] font-semibold transition-colors cursor-pointer text-center disabled:opacity-50"
+            >
+              Demo Admin &rarr;
+            </button>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => handleQuickLogin('customer')}
+              className="py-2 px-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-semibold transition-colors cursor-pointer text-center disabled:opacity-50"
+            >
+              Demo Customer &rarr;
+            </button>
+          </div>
+        </div>
 
         <p className="text-center text-xs text-slate-500">
           New to Ecart?{' '}

@@ -151,6 +151,21 @@ export function AuthProvider({ children }) {
     }
   }
 
+  const updateProfile = async (profileData) => {
+    try {
+      const res = await api.put('/auth/profile', profileData)
+      if (res.data?.user) {
+        setUser(res.data.user)
+        localStorage.setItem('ecart_user', JSON.stringify(res.data.user))
+        return { success: true, user: res.data.user }
+      }
+      return { success: false, error: 'Failed to update profile.' }
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to update profile.'
+      return { success: false, error: msg }
+    }
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -164,6 +179,7 @@ export function AuthProvider({ children }) {
         register,
         demoLogin,
         logout,
+        updateProfile,
       }}
     >
       {children}

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Search, Heart, ShoppingBag, User, LogOut, Menu, X, ArrowRight, Shield } from 'lucide-react'
+import { Search, ShoppingBag, User, LogOut, Menu, X, ArrowRight, Shield, MapPin } from 'lucide-react'
 import { useCart } from '../../context/CartContext'
 import { useAuth } from '../../context/AuthContext'
+import BrandLogo from '../common/BrandLogo'
 
 export default function Navbar() {
   const { totalItemsCount } = useCart()
@@ -19,12 +20,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="h-20 flex items-center justify-between">
           {/* Brand Logo */}
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-sm">
-              <ShoppingBag className="w-4 h-4" />
-            </div>
-            <span className="font-extrabold text-xl tracking-tight text-slate-900">Ecart</span>
-          </Link>
+          <BrandLogo size="md" />
 
           {/* Navigation Links */}
           <nav className="hidden md:flex items-center gap-8 text-xs font-semibold text-slate-600">
@@ -39,6 +35,9 @@ export default function Navbar() {
             </Link>
             <Link to="/shop?category=wearables" className="hover:text-slate-900 transition-colors">
               Wearables
+            </Link>
+            <Link to="/shop?category=accessories" className="hover:text-slate-900 transition-colors">
+              Accessories
             </Link>
             <Link to="/shop" className="hover:text-slate-900 transition-colors">
               Deals
@@ -55,13 +54,6 @@ export default function Navbar() {
               <Search className="w-4 h-4" />
             </Link>
 
-            <Link
-              to="/shop"
-              aria-label="Wishlist"
-              className="p-2 hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-colors hidden sm:block"
-            >
-              <Heart className="w-4 h-4" />
-            </Link>
 
             {/* Cart Icon with Live Counter */}
             <Link
@@ -107,10 +99,30 @@ export default function Navbar() {
                         </div>
                         <p className="text-slate-400 truncate">{user?.email}</p>
                       </div>
+                      {isAdmin && (
+                        <div className="py-1 border-b border-slate-100">
+                          <Link
+                            to="/admin"
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg text-indigo-600 hover:bg-indigo-50 font-bold"
+                          >
+                            <Shield className="w-3.5 h-3.5 text-indigo-600" />
+                            Admin Console
+                          </Link>
+                        </div>
+                      )}
                       <div className="py-1">
                         <Link
+                          to="/account/profile"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 font-medium transition-colors"
+                        >
+                          <MapPin className="w-3.5 h-3.5 text-indigo-600" />
+                          Profile & Address
+                        </Link>
+                        <Link
                           to="/account/orders"
-                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 font-medium"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 font-medium transition-colors"
                         >
                           <ShoppingBag className="w-3.5 h-3.5 text-indigo-600" />
                           Order Invoices
@@ -183,6 +195,13 @@ export default function Navbar() {
               className="block px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50"
             >
               Wearables
+            </Link>
+            <Link
+              to="/shop?category=accessories"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Accessories
             </Link>
             <Link
               to="/shop"

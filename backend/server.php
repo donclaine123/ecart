@@ -7,12 +7,22 @@
  * @author   Taylor Otwell <taylor@laravel.com>
  */
 
-// Instant preflight CORS handling for PHP built-in server
+// Preflight CORS handling for PHP built-in development server
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    header('Access-Control-Allow-Origin: *');
-    header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Origin, Content-Type, Accept, Authorization, X-Requested-With');
-    header('Access-Control-Max-Age: 86400');
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    $allowed = [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'https://myecart.vercel.app',
+    ];
+    $isAllowed = in_array($origin, $allowed, true);
+
+    if ($isAllowed) {
+        header("Access-Control-Allow-Origin: {$origin}");
+        header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
+        header('Access-Control-Allow-Headers: Accept, Authorization, Content-Type, Origin, X-Requested-With');
+        header('Access-Control-Max-Age: 86400');
+    }
     http_response_code(204);
     exit(0);
 }

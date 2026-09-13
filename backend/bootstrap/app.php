@@ -16,7 +16,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
         ]);
+        $middleware->redirectGuestsTo(fn () => null);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        // Custom API JSON exception handlers
+        $exceptions->shouldRenderJsonWhen(function (\Illuminate\Http\Request $request) {
+            return $request->is('api/*') || $request->expectsJson();
+        });
     })->create();

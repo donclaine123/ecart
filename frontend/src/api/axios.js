@@ -1,16 +1,29 @@
 import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'
+const getBaseURL = () => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL
+  if (typeof window !== 'undefined' && envUrl) {
+    // Keep hostname consistent with the window (localhost vs 127.0.0.1) to avoid CORS preflight mismatches
+    if (window.location.hostname === 'localhost' && envUrl.includes('127.0.0.1')) {
+      return envUrl.replace('127.0.0.1', 'localhost')
+    }
+    if (window.location.hostname === '127.0.0.1' && envUrl.includes('localhost')) {
+      return envUrl.replace('localhost', '127.0.0.1')
+    }
+    return envUrl
+  }
+  return envUrl || 'http://localhost:8000/api/v1'
+}
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: getBaseURL(),
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
   },
 })
 
-// Request interceptor: inject Sanctum Bearer token if available
+// Request interceptor: inject Sanctum Bearer token if   available
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('ecart_token')

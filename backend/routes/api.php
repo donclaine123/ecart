@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\CartController;
 use App\Http\Controllers\Api\V1\OrderController;
+use App\Http\Controllers\Api\V1\StripePaymentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -30,6 +31,7 @@ Route::post('/auth/login', [AuthController::class, 'login'])->middleware('thrott
 Route::middleware('auth:sanctum')->group(function () {
     // Auth Profile & Logout
     Route::get('/auth/profile', [AuthController::class, 'profile']);
+    Route::put('/auth/profile', [AuthController::class, 'updateProfile']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
     // Shopping Cart
@@ -43,7 +45,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/orders', [OrderController::class, 'store']);
     Route::get('/orders', [OrderController::class, 'index']);
     Route::get('/orders/{orderNumber}', [OrderController::class, 'show']);
+
+    // Stripe PaymentIntent
+    Route::post('/checkout/payment-intent', [StripePaymentController::class, 'createPaymentIntent']);
 });
+
+// Stripe Webhook (Signature verified)
+Route::post('/webhooks/stripe', [StripePaymentController::class, 'handleWebhook']);
 
 // Admin Portal Routes (Guarded by Sanctum + role:admin)
 Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
