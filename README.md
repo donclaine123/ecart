@@ -1,11 +1,5 @@
 # Ecart — Full-Stack Cloud E-Commerce Platform
 
-[![Live Application](https://img.shields.io/badge/Live%20Demo-myecart.vercel.app-10b981?style=for-the-badge&logo=vercel)](https://myecart.vercel.app)
-[![Frontend](https://img.shields.io/badge/Frontend-Vercel-black?style=for-the-badge&logo=vercel)](https://myecart.vercel.app)
-[![Backend](https://img.shields.io/badge/Backend-Render-46E3B7?style=for-the-badge&logo=render)](https://render.com)
-[![Database & Storage](https://img.shields.io/badge/Database%20%26%20Storage-Supabase-3ECF8E?style=for-the-badge&logo=supabase)](https://supabase.com)
-[![Tests](https://img.shields.io/badge/Tests-39%20Passed%20(120%20assertions)-brightgreen?style=for-the-badge&logo=php)](backend/tests)
-
 > **Live Demo:** [https://myecart.vercel.app](https://myecart.vercel.app)
 
 A modern, high-performance decoupled full-stack e-commerce web platform engineered with **React 19 (Vite)** and a **Laravel 11 REST API**. Designed and built to showcase production-grade software engineering fundamentals: atomic database transactions, pessimistic row-level locking, server-authoritative pricing, zero-delay real-time database synchronization, and resilient Stripe payment processing.
@@ -120,51 +114,6 @@ The application is deployed across a modern cloud infrastructure:
 | **Payments** | Stripe Elements & Stripe PaymentIntents API |
 | **Production Hosting**| Vercel (Frontend), Render (API Web Service), Supabase (Database & Storage) |
 | **Testing** | PHPUnit 11 (39 feature test suites, 120 assertions) |
-
----
-
-## 💻 Local Development Setup
-
-### Prerequisites
-* Node.js v18+ & npm
-* PHP 8.2+ with `pdo_pgsql` extension
-* Composer
-
-### 1. Backend Setup (Laravel 11)
-
-```bash
-cd backend
-composer install
-cp .env.example .env
-
-# Generate application key
-php artisan key:generate
-
-# Run database migrations and seed realistic catalog
-php artisan migrate --seed
-
-# Run automated test suite
-php artisan test
-
-# Start backend local development server
-php -S 127.0.0.1:8000 server.php
-```
-
-### 2. Frontend Setup (React / Vite)
-
-```bash
-cd frontend
-npm install
-
-# Configure environment variables
-# VITE_API_BASE_URL=http://localhost:8000/api/v1
-# VITE_STRIPE_PUBLISHABLE_KEY=pk_test_placeholder
-
-# Launch frontend development server
-npm run dev
-```
-
-Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
