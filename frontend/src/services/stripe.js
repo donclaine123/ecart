@@ -55,8 +55,8 @@ function createSimulatedStripeClient(key) {
       }),
     }),
     confirmCardPayment: async (clientSecret, data = {}) => {
-      // Simulate realistic 600ms network roundtrip
-      await new Promise((r) => setTimeout(r, 600))
+      // Fast simulated verification roundtrip
+      await new Promise((r) => setTimeout(r, 100))
       return {
         paymentIntent: {
           id: clientSecret ? clientSecret.split('_secret_')[0] : 'pi_simulated_' + Math.random().toString(36).substring(2, 12),

@@ -15,16 +15,7 @@ export default function HomePage() {
     } catch (_) {}
     return []
   })
-  const [loading, setLoading] = useState(() => {
-    try {
-      const cached = localStorage.getItem('ecart_featured_cache')
-      if (cached) {
-        const parsed = JSON.parse(cached)
-        if (Array.isArray(parsed) && parsed.length > 0) return false
-      }
-    } catch (_) {}
-    return true
-  })
+  const [loading, setLoading] = useState(featuredProducts.length === 0)
 
   const defaultCategories = [
     { name: 'Flagship Phones', slug: 'smartphones', icon: Smartphone },

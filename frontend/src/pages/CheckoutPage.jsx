@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { Lock, ShieldCheck, CreditCard, ArrowRight, Truck, Zap, MapPin, Edit3, X, ChevronRight, CheckCircle2 } from 'lucide-react'
 import { useCart } from '../context/CartContext'
@@ -90,10 +90,14 @@ export default function CheckoutPage() {
     }
   }, [user])
 
+  const [checkoutStep, setCheckoutStep] = useState('')
+  const prefetchingRef = useRef(false)
+
   // Prefetch Stripe PaymentIntent when user is ready to checkout
   useEffect(() => {
     let active = true
-    if (activeItems.length > 0 && isAuthenticated && !clientSecret) {
+    if (activeItems.length > 0 && isAuthenticated && !clientSecret && !prefetchingRef.current) {
+      prefetchingRef.current = true
       const directPayload = directItem
         ? { product_id: directItem.product.id, quantity: directItem.quantity }
         : null
@@ -107,6 +111,7 @@ export default function CheckoutPage() {
           }
         })
         .catch((err) => {
+          prefetchingRef.current = false
           if (active) {
             console.warn('Failed to prefetch Stripe intent:', err)
           }
@@ -153,6 +158,7 @@ export default function CheckoutPage() {
     }
 
     try {
+      setCheckoutStep('Verifying card details...')
       // Pre-validate card input fields before starting transaction
       if (cardHandler && cardHandler.validate) {
         const valError = cardHandler.validate()
@@ -160,6 +166,7 @@ export default function CheckoutPage() {
           setCardError(valError)
           setError(valError)
           setLoading(false)
+          setCheckoutStep('')
           return
         }
       }
@@ -172,6 +179,7 @@ export default function CheckoutPage() {
 
       // If intent wasn't fetched yet, fetch now
       if (!activeSecret) {
+        setCheckoutStep('Preparing payment session...')
         const intentData = await createStripePaymentIntent(directPayload)
         activeSecret = intentData.clientSecret
         activeIntentId = intentData.paymentIntentId
@@ -180,6 +188,7 @@ export default function CheckoutPage() {
       }
 
       // Confirm card payment
+      setCheckoutStep('Authorizing payment...')
       let confirmedId = activeIntentId
       if (cardHandler && cardHandler.confirmPayment) {
         const confirmRes = await cardHandler.confirmPayment(activeSecret)
@@ -194,12 +203,14 @@ export default function CheckoutPage() {
       }
 
       // Finalize order atomically in database
+      setCheckoutStep('Creating order record...')
       const order = await placeStripeOrder(formData, confirmedId, directPayload)
       navigate(`/order-success/${order.order_number}`)
     } catch (err) {
       setError(err.message || 'Failed to process order. Please try again.')
     } finally {
       setLoading(false)
+      setCheckoutStep('')
     }
   }
 
@@ -336,7 +347,7 @@ export default function CheckoutPage() {
             {loading ? (
               <span className="flex items-center gap-2">
                 <span className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                Authorizing Payment...
+                {checkoutStep || 'Processing Order...'}
               </span>
             ) : (
               <>

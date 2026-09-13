@@ -1,16 +1,27 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Eye, X, ShoppingBag, MapPin, AlertCircle } from 'lucide-react'
+import { Eye, X, ShoppingBag, MapPin, AlertCircle, Loader2, RefreshCw, Database } from 'lucide-react'
 import api from '../../api/axios'
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState(() => {
     try {
       const cached = localStorage.getItem('ecart_admin_orders')
-      return cached ? JSON.parse(cached) : []
+      const parsed = cached ? JSON.parse(cached) : []
+      return Array.isArray(parsed) ? parsed : []
     } catch {
       return []
     }
   })
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem('ecart_admin_orders')
+      const parsed = cached ? JSON.parse(cached) : []
+      return !Array.isArray(parsed) || parsed.length === 0
+    } catch {
+      return true
+    }
+  })
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [statusUpdating, setStatusUpdating] = useState(null)
   const [statusError, setStatusError] = useState('')
@@ -24,7 +35,13 @@ export default function AdminOrdersPage() {
     { value: 'returned', label: 'Returned' },
   ]
 
-  const loadOrders = useCallback(async () => {
+  const loadOrders = useCallback(async (isManual = false) => {
+    if (isManual || orders.length === 0) {
+      setLoading(true)
+    } else {
+      setIsRefreshing(true)
+    }
+    setStatusError('')
     try {
       const res = await api.get('/admin/orders')
       const orderList = res.data?.data || res.data || []
@@ -35,8 +52,12 @@ export default function AdminOrdersPage() {
       } catch {}
     } catch (err) {
       console.error('Failed to load admin orders:', err)
+      setStatusError(err.response?.data?.message || 'Unable to retrieve live orders.')
+    } finally {
+      setLoading(false)
+      setIsRefreshing(false)
     }
-  }, [])
+  }, [orders.length])
 
   useEffect(() => {
     loadOrders()
@@ -47,9 +68,13 @@ export default function AdminOrdersPage() {
     setStatusError('')
     try {
       await api.patch(`/admin/orders/${orderId}/status`, { status: newStatus })
-      setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
-      )
+      setOrders((prev) => {
+        const updated = prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+        try {
+          localStorage.setItem('ecart_admin_orders', JSON.stringify(updated))
+        } catch {}
+        return updated
+      })
       if (selectedOrder && selectedOrder.id === orderId) {
         setSelectedOrder((prev) => ({ ...prev, status: newStatus }))
       }
@@ -62,11 +87,28 @@ export default function AdminOrdersPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Order Fulfillment Queue</h1>
-        <p className="text-xs text-slate-500 mt-1">
-          Review customer checkout snapshots, inspect shipping destinations, and update delivery status.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Order Fulfillment Queue</h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Review customer checkout snapshots, inspect shipping destinations, and update delivery status.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
+            <Database className="w-3.5 h-3.5" />
+            <span>{orders.length} in queue</span>
+            {isRefreshing && <Loader2 className="w-3 h-3 animate-spin text-emerald-600 ml-1" />}
+          </span>
+          <button
+            onClick={() => loadOrders(true)}
+            disabled={loading || isRefreshing}
+            title="Refresh directly from live database"
+            className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {statusError && (
@@ -86,7 +128,40 @@ export default function AdminOrdersPage() {
 
       {/* Orders Table */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        {orders.length === 0 ? (
+        {loading ? (
+          <div className="overflow-x-auto animate-pulse">
+            <table className="w-full text-left text-xs text-slate-600">
+              <thead className="bg-slate-50/80 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                <tr>
+                  <th className="py-3.5 px-6">Order Reference</th>
+                  <th className="py-3.5 px-4">Customer</th>
+                  <th className="py-3.5 px-4">Date Placed</th>
+                  <th className="py-3.5 px-4">Total Amount</th>
+                  <th className="py-3.5 px-4">Payment</th>
+                  <th className="py-3.5 px-4">Fulfillment Status</th>
+                  <th className="py-3.5 px-6 text-right">Receipt</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <tr key={n}>
+                    <td className="py-3.5 px-6"><div className="h-3.5 bg-slate-100 rounded w-28" /></td>
+                    <td className="py-3.5 px-4"><div className="h-3 bg-slate-100 rounded w-32 mb-1" /><div className="h-2.5 bg-slate-100 rounded w-20" /></td>
+                    <td className="py-3.5 px-4"><div className="h-3 bg-slate-100 rounded w-20" /></td>
+                    <td className="py-3.5 px-4"><div className="h-3 bg-slate-100 rounded w-16" /></td>
+                    <td className="py-3.5 px-4"><div className="h-5 bg-slate-100 rounded-full w-14" /></td>
+                    <td className="py-3.5 px-4"><div className="h-7 bg-slate-100 rounded-lg w-28" /></td>
+                    <td className="py-3.5 px-6 text-right"><div className="h-4 bg-slate-100 rounded w-8 ml-auto" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="py-3 text-center border-t border-slate-100 bg-slate-50/50 flex items-center justify-center gap-2">
+              <Loader2 className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
+              <span className="text-[11px] text-slate-500 font-semibold">Synchronizing order queue with live database...</span>
+            </div>
+          </div>
+        ) : orders.length === 0 ? (
           <div className="py-20 text-center text-xs text-slate-400 space-y-2">
             <ShoppingBag className="w-8 h-8 mx-auto text-slate-300" />
             <p>No orders placed yet.</p>

@@ -20,7 +20,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS
     if ($isAllowed) {
         header("Access-Control-Allow-Origin: {$origin}");
         header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-        header('Access-Control-Allow-Headers: Accept, Authorization, Content-Type, Origin, X-Requested-With');
+        header('Access-Control-Allow-Headers: Accept, Authorization, Content-Type, Origin, X-Requested-With, Cache-Control, Pragma');
         header('Access-Control-Max-Age: 86400');
     }
     http_response_code(204);

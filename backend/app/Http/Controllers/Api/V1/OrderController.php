@@ -49,6 +49,7 @@ class OrderController extends Controller
 
         $user = $request->user();
         $isDirect = !empty($validated['direct_item']);
+        $cartItems = null;
 
         if (!$isDirect) {
             $cartItems = CartItem::where('user_id', $user->id)->get();
@@ -59,11 +60,33 @@ class OrderController extends Controller
             }
         }
 
+        // 1. Verify Payment Intent OUTSIDE the database transaction to prevent holding locks during network I/O
+        $gateway = $validated['gateway'] ?? 'mock';
+        $transactionId = 'TXN-' . strtoupper(Str::random(12));
+
+        if ($gateway === 'stripe') {
+            $paymentIntentId = $validated['payment_intent_id'] ?? null;
+            if (!$paymentIntentId) {
+                return response()->json([
+                    'message' => 'PaymentIntent ID is required for Stripe checkout.',
+                ], 422);
+            }
+
+            $intent = $this->stripeService->retrievePaymentIntent($paymentIntentId);
+            if (empty($intent) || (!in_array($intent['status'] ?? '', ['succeeded', 'requires_capture']) && !($intent['is_mock'] ?? false))) {
+                return response()->json([
+                    'message' => 'Payment verification failed. Please check your card details and try again.',
+                ], 422);
+            }
+
+            $transactionId = $paymentIntentId;
+        }
+
         $order = null;
 
-        // 2. Execute Atomic Checkout Transaction with Pessimistic Row Locking
+        // 2. Execute Fast Atomic Checkout Transaction with Pessimistic Row Locking
         try {
-            DB::transaction(function () use ($user, $validated, $isDirect, &$order) {
+            DB::transaction(function () use ($user, $validated, $isDirect, $cartItems, $gateway, $transactionId, &$order) {
                 $itemsToSnapshot = [];
                 $subtotal = 0.00;
                 $productsMap = [];
@@ -94,7 +117,6 @@ class OrderController extends Controller
                     ];
                     $productsMap[$product->id] = $product;
                 } else {
-                    $cartItems = CartItem::where('user_id', $user->id)->get();
                     $productIds = $cartItems->pluck('product_id')->all();
 
                     $products = Product::whereIn('id', $productIds)
@@ -147,31 +169,20 @@ class OrderController extends Controller
                     'shipping_address_json' => $validated['shipping_address'],
                 ]);
 
-                // Snapshot each item and decrement inventory atomically
+                // Batch insert order items in a single query
+                $now = now();
+                $orderItemsBatch = [];
                 foreach ($itemsToSnapshot as $itemData) {
                     $itemData['order_id'] = $order->id;
-                    OrderItem::create($itemData);
+                    $itemData['created_at'] = $now;
+                    $itemData['updated_at'] = $now;
+                    $orderItemsBatch[] = $itemData;
 
                     // Decrement stock under pessimistic lock
                     $productsMap[$itemData['product_id']]->decrement('stock_quantity', $itemData['quantity']);
                 }
 
-                $gateway = $validated['gateway'] ?? 'mock';
-                $transactionId = 'TXN-' . strtoupper(Str::random(12));
-
-                if ($gateway === 'stripe') {
-                    $paymentIntentId = $validated['payment_intent_id'] ?? null;
-                    if (!$paymentIntentId) {
-                        throw new \Exception('PaymentIntent ID is required for Stripe checkout.');
-                    }
-
-                    $intent = $this->stripeService->retrievePaymentIntent($paymentIntentId);
-                    if (empty($intent) || (!in_array($intent['status'] ?? '', ['succeeded', 'requires_capture']) && !($intent['is_mock'] ?? false))) {
-                        throw new \Exception('Payment verification failed. Please check your card details and try again.');
-                    }
-
-                    $transactionId = $paymentIntentId;
-                }
+                OrderItem::insert($orderItemsBatch);
 
                 // Create Payment record
                 Payment::create([
@@ -223,13 +234,11 @@ class OrderController extends Controller
     // Admin Operations
     public function adminOrders(): JsonResponse
     {
-        $orders = Cache::remember('admin_orders_list', 60, function () {
-            return Order::with(['user:id,name,email', 'items'])
-                ->latest()
-                ->paginate(20);
-        });
+        $orders = Order::with(['user:id,name,email', 'items'])
+            ->latest()
+            ->paginate(20);
 
-        return response()->json($orders)->header('Cache-Control', 'private, max-age=15, stale-while-revalidate=60');
+        return response()->json($orders)->header('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
 
     public function updateStatus(Request $request, int $id): JsonResponse
@@ -242,9 +251,6 @@ class OrderController extends Controller
 
         $order->update(['status' => $validated['status']]);
 
-        Cache::forget('admin_orders_list');
-        Cache::forget('admin_dashboard_stats');
-
         return response()->json([
             'message' => 'Order status updated successfully.',
             'order' => $order,
@@ -253,18 +259,14 @@ class OrderController extends Controller
 
     public function adminStats(): JsonResponse
     {
-        $stats = Cache::remember('admin_dashboard_stats', 60, function () {
-            $totalRevenue = Order::where('payment_status', 'paid')->sum('total_amount');
-            $totalOrders = Order::count();
-            $lowStockCount = Product::where('stock_quantity', '<=', 8)->count();
+        $totalRevenue = Order::where('payment_status', 'paid')->sum('total_amount');
+        $totalOrders = Order::count();
+        $lowStockCount = Product::where('stock_quantity', '<=', 8)->count();
 
-            return [
-                'total_revenue' => (float) $totalRevenue,
-                'total_orders' => $totalOrders,
-                'low_stock_products_count' => $lowStockCount,
-            ];
-        });
-
-        return response()->json($stats)->header('Cache-Control', 'private, max-age=15, stale-while-revalidate=60');
+        return response()->json([
+            'total_revenue' => (float) $totalRevenue,
+            'total_orders' => $totalOrders,
+            'low_stock_products_count' => $lowStockCount,
+        ])->header('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
 }

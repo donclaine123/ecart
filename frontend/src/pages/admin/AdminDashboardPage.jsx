@@ -1,70 +1,75 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { DollarSign, ShoppingBag, AlertTriangle, ArrowRight, Package, TrendingUp } from 'lucide-react'
+import { DollarSign, ShoppingBag, AlertTriangle, ArrowRight, Package, TrendingUp, Loader2, RefreshCw, Database } from 'lucide-react'
 import api from '../../api/axios'
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState(() => {
     try {
       const cached = localStorage.getItem('ecart_admin_stats')
-      return cached ? JSON.parse(cached) : {
-        total_revenue: 0,
-        total_orders: 0,
-        low_stock_products_count: 0,
-      }
+      return cached ? JSON.parse(cached) : null
     } catch {
-      return {
-        total_revenue: 0,
-        total_orders: 0,
-        low_stock_products_count: 0,
-      }
+      return null
     }
   })
   const [recentOrders, setRecentOrders] = useState(() => {
     try {
       const cached = localStorage.getItem('ecart_admin_recent_orders')
-      return cached ? JSON.parse(cached) : []
+      const parsed = cached ? JSON.parse(cached) : []
+      return Array.isArray(parsed) ? parsed : []
     } catch {
       return []
     }
   })
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem('ecart_admin_stats')
+      return !cached
+    } catch {
+      return true
+    }
+  })
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const loadDashboardData = useCallback(async (isManual = false) => {
+    if (isManual || !stats) {
+      setLoading(true)
+    } else {
+      setIsRefreshing(true)
+    }
+
+    try {
+      const [statsRes, ordersRes] = await Promise.all([
+        api.get('/admin/dashboard/stats').catch(() => ({ data: null })),
+        api.get('/admin/orders').catch(() => ({ data: null })),
+      ])
+
+      if (statsRes.data) {
+        setStats(statsRes.data)
+        try {
+          localStorage.setItem('ecart_admin_stats', JSON.stringify(statsRes.data))
+        } catch {}
+      }
+
+      const rawOrders = ordersRes.data?.data || (Array.isArray(ordersRes.data) ? ordersRes.data : [])
+      if (Array.isArray(rawOrders)) {
+        const list = rawOrders.slice(0, 5)
+        setRecentOrders(list)
+        try {
+          localStorage.setItem('ecart_admin_recent_orders', JSON.stringify(list))
+        } catch {}
+      }
+    } catch (err) {
+      console.error('Failed to load dashboard data:', err)
+    } finally {
+      setLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [stats])
 
   useEffect(() => {
-    let isMounted = true
-
-    async function loadDashboardData() {
-      try {
-        const [statsRes, ordersRes] = await Promise.all([
-          api.get('/admin/dashboard/stats').catch(() => ({ data: null })),
-          api.get('/admin/orders').catch(() => ({ data: null })),
-        ])
-
-        if (isMounted) {
-          if (statsRes.data) {
-            setStats(statsRes.data)
-            try {
-              localStorage.setItem('ecart_admin_stats', JSON.stringify(statsRes.data))
-            } catch {}
-          }
-          if (ordersRes.data?.data) {
-            const list = ordersRes.data.data.slice(0, 5)
-            setRecentOrders(list)
-            try {
-              localStorage.setItem('ecart_admin_recent_orders', JSON.stringify(list))
-            } catch {}
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load dashboard data:', err)
-      }
-    }
-
     loadDashboardData()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
+  }, [loadDashboardData])
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -77,6 +82,19 @@ export default function AdminDashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
+            <Database className="w-3.5 h-3.5" />
+            <span>Live Sync</span>
+            {isRefreshing && <Loader2 className="w-3 h-3 animate-spin text-emerald-600 ml-0.5" />}
+          </span>
+          <button
+            onClick={() => loadDashboardData(true)}
+            disabled={loading || isRefreshing}
+            title="Refresh directly from live database"
+            className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
           <Link
             to="/admin/products"
             className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm transition-colors flex items-center gap-2"
@@ -98,9 +116,13 @@ export default function AdminDashboardPage() {
             </div>
           </div>
           <div>
-            <div className="text-3xl font-extrabold text-slate-900">
-              ${parseFloat(stats.total_revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-            </div>
+            {loading && !stats ? (
+              <div className="h-9 w-28 bg-slate-100 rounded-lg animate-pulse my-0.5" />
+            ) : (
+              <div className="text-3xl font-extrabold text-slate-900">
+                ${parseFloat(stats?.total_revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </div>
+            )}
             <p className="text-[11px] text-emerald-600 font-medium mt-1 flex items-center gap-1">
               <TrendingUp className="w-3 h-3" />
               Verified settled payments
@@ -117,9 +139,13 @@ export default function AdminDashboardPage() {
             </div>
           </div>
           <div>
-            <div className="text-3xl font-extrabold text-slate-900">
-              {stats.total_orders || 0}
-            </div>
+            {loading && !stats ? (
+              <div className="h-9 w-16 bg-slate-100 rounded-lg animate-pulse my-0.5" />
+            ) : (
+              <div className="text-3xl font-extrabold text-slate-900">
+                {stats?.total_orders ?? 0}
+              </div>
+            )}
             <p className="text-[11px] text-indigo-600 font-medium mt-1">Recorded in database</p>
           </div>
         </div>
@@ -133,9 +159,13 @@ export default function AdminDashboardPage() {
             </div>
           </div>
           <div>
-            <div className="text-3xl font-extrabold text-slate-900">
-              {stats.low_stock_products_count || 0}
-            </div>
+            {loading && !stats ? (
+              <div className="h-9 w-16 bg-slate-100 rounded-lg animate-pulse my-0.5" />
+            ) : (
+              <div className="text-3xl font-extrabold text-slate-900">
+                {stats?.low_stock_products_count ?? 0}
+              </div>
+            )}
             <p className="text-[11px] text-amber-600 font-medium mt-1">Items with &le; 8 units remaining</p>
           </div>
         </div>
@@ -157,7 +187,26 @@ export default function AdminDashboardPage() {
           </Link>
         </div>
 
-        {recentOrders.length === 0 ? (
+        {loading && recentOrders.length === 0 ? (
+          <div className="py-8 space-y-3 animate-pulse">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="py-3 flex items-center justify-between border-b border-slate-50 last:border-0">
+                <div className="space-y-1.5">
+                  <div className="h-3.5 bg-slate-100 rounded w-32" />
+                  <div className="h-2.5 bg-slate-100 rounded w-40" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="h-5 bg-slate-100 rounded-full w-16" />
+                  <div className="h-4 bg-slate-100 rounded w-12" />
+                </div>
+              </div>
+            ))}
+            <div className="py-2 text-center flex items-center justify-center gap-2">
+              <Loader2 className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
+              <span className="text-[11px] text-slate-400 font-semibold">Synchronizing operations overview with live database...</span>
+            </div>
+          </div>
+        ) : recentOrders.length === 0 ? (
           <div className="py-12 text-center text-xs text-slate-400">No customer orders placed yet.</div>
         ) : (
           <div className="divide-y divide-slate-100 overflow-x-auto">

@@ -230,7 +230,7 @@ export function CartProvider({ children }) {
     }
   }
 
-  const createStripePaymentIntent = async (directParams = null) => {
+  const createStripePaymentIntent = useCallback(async (directParams = null) => {
     try {
       const res = await api.post('/checkout/payment-intent', directParams || {})
       return res.data
@@ -238,9 +238,9 @@ export function CartProvider({ children }) {
       const msg = err.response?.data?.message || 'Failed to initialize Stripe payment.'
       throw new Error(msg)
     }
-  }
+  }, [])
 
-  const placeStripeOrder = async (shippingAddress, paymentIntentId, directItem = null) => {
+  const placeStripeOrder = useCallback(async (shippingAddress, paymentIntentId, directItem = null) => {
     try {
       const payload = {
         shipping_address: shippingAddress,
@@ -265,7 +265,7 @@ export function CartProvider({ children }) {
       const msg = err.response?.data?.message || 'Failed to finalize Stripe order.'
       throw new Error(msg)
     }
-  }
+  }, [])
 
   return (
     <CartContext.Provider

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Search, SlidersHorizontal, X, Tag, Loader2 } from 'lucide-react'
+import { Search, SlidersHorizontal, X, Tag, Loader2, RefreshCw } from 'lucide-react'
 import api from '../api/axios'
 import ProductCard from '../components/common/ProductCard'
 
@@ -9,12 +9,14 @@ export default function ShopPage() {
   const categoryParam = searchParams.get('category') || 'all'
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState('featured')
+
+  // 1. Instantaneous 0ms initial render from cache (Stale-While-Revalidate)
   const [categories, setCategories] = useState(() => {
     try {
       const cached = localStorage.getItem('ecart_categories_db_cache')
       if (cached) {
-        const list = JSON.parse(cached)
-        if (Array.isArray(list) && list.length > 0) return list
+        const parsed = JSON.parse(cached)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
       }
     } catch {}
     return []
@@ -24,17 +26,19 @@ export default function ShopPage() {
     try {
       const cached = localStorage.getItem('ecart_products_db_cache')
       if (cached) {
-        const list = JSON.parse(cached)
-        if (Array.isArray(list) && list.length > 0) return list
+        const parsed = JSON.parse(cached)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
       }
     } catch {}
     return []
   })
 
   const [loading, setLoading] = useState(allProducts.length === 0)
+  const [isSyncing, setIsSyncing] = useState(false)
 
-  // Fetch Categories & Products in parallel directly from database
-  const loadShopData = useCallback(async () => {
+  // 2. Live background sync directly from Supabase database
+  const loadShopData = useCallback(async (isManual = false) => {
+    if (isManual) setIsSyncing(true)
     try {
       const [catRes, prodRes] = await Promise.all([
         api.get('/categories', { timeout: 8000 }).catch(() => ({ data: null })),
@@ -60,6 +64,7 @@ export default function ShopPage() {
       console.warn('Database catalog query notice:', err.message)
     } finally {
       setLoading(false)
+      setIsSyncing(false)
     }
   }, [])
 
@@ -126,11 +131,29 @@ export default function ShopPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Storefront Catalog</h1>
-        <p className="mt-1 text-xs text-slate-500">
-          Discover certified devices with verified server-side stock availability.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Storefront Catalog</h1>
+          <p className="mt-1 text-xs text-slate-500">
+            Discover certified devices with verified server-side stock availability.
+          </p>
+        </div>
+
+        {/* Live DB sync indicator */}
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 shadow-xs">
+            <span className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-ping' : 'bg-emerald-500'}`} />
+            {isSyncing ? 'Syncing with Supabase...' : `${allProducts.length} items live`}
+          </span>
+          <button
+            onClick={() => loadShopData(true)}
+            disabled={isSyncing}
+            className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer border border-slate-200/70"
+            title="Refresh catalog from live database"
+          >
+            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {/* Controls Bar: Search & Sort */}

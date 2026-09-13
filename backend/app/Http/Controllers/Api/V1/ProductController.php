@@ -12,131 +12,110 @@ use Illuminate\Support\Str;
 
 class ProductController extends Controller
 {
-    public function categories(): JsonResponse
+    public function categories(Request $request): JsonResponse
     {
-        $categories = Cache::remember('catalog_categories_v1', 300, function () {
-            return Category::where('is_active', true)
-                ->withCount('products')
-                ->get();
-        });
+        $categories = Category::where('is_active', true)
+            ->withCount('products')
+            ->get();
 
         return response()->json([
             'data' => $categories,
-        ])->header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+        ])->header('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
 
     public function index(Request $request): JsonResponse
     {
-        $cacheKey = 'catalog_products_' . md5(json_encode($request->all()));
+        $query = Product::with('category')->where('is_active', true);
 
-        $products = Cache::remember($cacheKey, 180, function () use ($request) {
-            $query = Product::with('category')->where('is_active', true);
+        // Filter by category slug or ID
+        if ($request->filled('category') && $request->category !== 'all') {
+            $cat = $request->category;
+            $query->whereHas('category', function ($q) use ($cat) {
+                if (is_numeric($cat)) {
+                    $q->where('id', (int) $cat)->orWhere('slug', $cat);
+                } else {
+                    $q->where('slug', $cat);
+                }
+            });
+        }
 
-            // Filter by category slug or ID
-            if ($request->filled('category') && $request->category !== 'all') {
-                $cat = $request->category;
-                $query->whereHas('category', function ($q) use ($cat) {
-                    if (is_numeric($cat)) {
-                        $q->where('id', (int) $cat)->orWhere('slug', $cat);
-                    } else {
-                        $q->where('slug', $cat);
-                    }
-                });
-            }
+        // Search by keyword
+        if ($request->filled('search')) {
+            $term = $request->search;
+            $query->where(function ($q) use ($term) {
+                $q->where('name', 'like', "%{$term}%")
+                  ->orWhere('description', 'like', "%{$term}%")
+                  ->orWhere('sku', 'like', "%{$term}%");
+            });
+        }
 
-            // Search by keyword
-            if ($request->filled('search')) {
-                $term = $request->search;
-                $query->where(function ($q) use ($term) {
-                    $q->where('name', 'like', "%{$term}%")
-                      ->orWhere('description', 'like', "%{$term}%")
-                      ->orWhere('sku', 'like', "%{$term}%");
-                });
-            }
+        // Sort
+        switch ($request->get('sort')) {
+            case 'price_asc':
+            case 'price-low':
+                $query->orderBy('price', 'asc');
+                break;
+            case 'price_desc':
+            case 'price-high':
+                $query->orderBy('price', 'desc');
+                break;
+            case 'newest':
+                $query->latest();
+                break;
+            default:
+                $query->orderBy('is_featured', 'desc')->latest();
+                break;
+        }
 
-            // Sort
-            switch ($request->get('sort')) {
-                case 'price_asc':
-                case 'price-low':
-                    $query->orderBy('price', 'asc');
-                    break;
-                case 'price_desc':
-                case 'price-high':
-                    $query->orderBy('price', 'desc');
-                    break;
-                case 'newest':
-                    $query->latest();
-                    break;
-                default:
-                    $query->orderBy('is_featured', 'desc')->latest();
-                    break;
-            }
-
-            return $query->paginate($request->get('per_page', 12));
-        });
+        $products = $query->paginate($request->get('per_page', 12));
 
         return response()->json($products)
-            ->header('Cache-Control', 'public, max-age=60, stale-while-revalidate=180');
+            ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
 
-    public function show(string $slug): JsonResponse
+    public function show(Request $request, string $slug): JsonResponse
     {
-        $data = Cache::remember("product_detail_{$slug}", 120, function () use ($slug) {
-            $product = Product::with('category')
-                ->where('slug', $slug)
-                ->where('is_active', true)
-                ->first();
+        $product = Product::with('category')
+            ->where('slug', $slug)
+            ->where('is_active', true)
+            ->first();
 
-            if (!$product) {
-                return null;
-            }
-
-            $related = Product::where('category_id', $product->category_id)
-                ->where('id', '!=', $product->id)
-                ->where('is_active', true)
-                ->limit(4)
-                ->get();
-
-            return [
-                'product' => $product,
-                'related' => $related,
-            ];
-        });
-
-        if (!$data) {
+        if (!$product) {
             return response()->json(['message' => 'Product not found.'], 404);
         }
 
-        return response()->json($data);
+        $related = Product::where('category_id', $product->category_id)
+            ->where('id', '!=', $product->id)
+            ->where('is_active', true)
+            ->limit(4)
+            ->get();
+
+        return response()->json([
+            'product' => $product,
+            'related' => $related,
+        ])->header('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
 
-    public function featured(): JsonResponse
+    public function featured(Request $request): JsonResponse
     {
-        $featured = Cache::remember('catalog_featured_products_v1', 300, function () {
-            return Product::with('category')
-                ->where('is_featured', true)
-                ->where('is_active', true)
-                ->limit(8)
-                ->get();
-        });
+        $featured = Product::with('category')
+            ->where('is_featured', true)
+            ->where('is_active', true)
+            ->limit(8)
+            ->get();
 
         return response()->json([
             'data' => $featured,
-        ])->header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+        ])->header('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
 
-    // Admin CRUD Endpoints
+    // Admin CRUD Endpoints (Always direct from live database, no-cache, no-store)
     public function adminIndex(Request $request): JsonResponse
     {
         $perPage = min((int) $request->query('per_page', 100), 100);
-        $page = (int) $request->query('page', 1);
-        $cacheKey = "admin_products_p{$page}_{$perPage}";
+        $products = Product::with('category')->orderBy('id', 'asc')->paginate($perPage);
 
-        $products = Cache::remember($cacheKey, 120, function () use ($perPage) {
-            return Product::with('category')->orderBy('id', 'asc')->paginate($perPage);
-        });
-
-        return response()->json($products)->header('Cache-Control', 'private, max-age=30, stale-while-revalidate=120');
+        return response()->json($products)->header('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
 
     public function adminStore(Request $request): JsonResponse

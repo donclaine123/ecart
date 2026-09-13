@@ -32,6 +32,8 @@ return [
         'Content-Type',
         'Origin',
         'X-Requested-With',
+        'Cache-Control',
+        'Pragma',
     ],
 
     'exposed_headers' => [],
